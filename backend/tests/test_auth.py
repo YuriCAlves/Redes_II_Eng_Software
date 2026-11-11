@@ -50,6 +50,8 @@ def test_login_invalid(client):
 def test_unauthenticated_gets_401(client):
     client.cookies.clear()
     assert client.get("/api/metrics").status_code == 401
+    assert client.get("/api/services").status_code == 401
+    assert client.get("/api/http-latency").status_code == 401
     assert client.get("/api/files/upload").status_code == 401
 
 
@@ -78,22 +80,68 @@ def test_leitor_write_routes_return_403(client, path):
 
 def test_leitor_can_read(client):
     login(client, "lia")
-    for path in ("/api/metrics", "/api/services", "/api/files", "/api/email/inbox", "/api/logs"):
-        assert client.get(path).status_code == 200
+    for path in ("/api/metrics", "/api/services", "/api/http-latency"):
+        assert client.get(path).status_code == 200, path
+    # Rotas que dependem de serviços externos: o leitor É autorizado. A resposta pode ser
+    # 502/503 se o serviço não existir neste ambiente de teste, mas nunca 401/403.
+    for path in (
+        "/api/files",
+        "/api/email/accounts",
+        "/api/email/messages?account=aluno@empresa.test",
+        "/api/ssh/info",
+        "/api/logs?service=ssh&lines=20",
+    ):
+        assert client.get(path).status_code not in (401, 403), path
 
 
 def test_operador_permissions(client):
     login(client, "otavio")
     assert client.get("/api/files/upload").status_code == 405  # autorizado, mas método errado
-    assert client.post("/api/files/upload", headers=H).status_code == 501
+    # autorizado: sem arquivo no corpo a resposta é 422 (validação), nunca 401/403
+    assert client.post("/api/files/upload", headers=H).status_code not in (401, 403)
     assert client.post("/api/ssh/hostname/change", headers=H).status_code == 403  # só admin
 
 
 def test_admin_permissions(client):
     login(client, "ana")
-    assert client.post("/api/ssh/hostname/change", headers=H).status_code == 501
+    assert client.post("/api/ssh/hostname/change", headers=H).status_code not in (401, 403)
 
 
 def test_csrf_header_required_on_post(client):
     login(client, "otavio")
     assert client.post("/api/files/upload").status_code == 403
+
+
+def test_leitor_cannot_use_any_write_post_with_valid_body(client):
+    login(client, "lia")
+    assert client.post("/api/files/upload", files={"file": ("a.pdf", b"x")}, headers=H).status_code == 403
+    body = {"account": "aluno@empresa.test", "to": "suporte@empresa.test", "subject": "a", "body": "b"}
+    assert client.post("/api/email/send", json=body, headers=H).status_code == 403
+    assert client.post("/api/ssh/hostname/change", json={"hostname": "novo"}, headers=H).status_code == 403
+    assert client.post("/api/ssh/hostname/restore", headers=H).status_code == 403
+
+
+def test_upload_rejects_bad_extension_and_name_before_ftp(client):
+    login(client, "otavio")
+    r = client.post("/api/files/upload", files={"file": ("virus.exe", b"abc")}, headers=H)
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "invalid_input"
+    r = client.post("/api/files/upload", files={"file": ("../../etc/passwd.txt", b"abc")}, headers=H)
+    assert r.status_code == 400
+
+
+def test_email_send_rejects_unknown_account(client):
+    login(client, "otavio")
+    body = {"account": "root@empresa.test", "to": "suporte@empresa.test", "subject": "a", "body": "b"}
+    assert client.post("/api/email/send", json=body, headers=H).status_code == 400
+
+
+def test_admin_hostname_validation(client):
+    login(client, "ana")
+    r = client.post("/api/ssh/hostname/change", json={"hostname": "Invalido; reboot"}, headers=H)
+    assert r.status_code == 400
+
+
+def test_logs_reject_unknown_service_and_lines(client):
+    login(client, "lia")
+    assert client.get("/api/logs?service=mysql&lines=20").status_code == 400
+    assert client.get("/api/logs?service=ssh&lines=7").status_code == 400

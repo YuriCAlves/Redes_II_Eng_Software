@@ -30,3 +30,22 @@ def require_role(minimum: str):
         return user
 
     return checker
+
+
+def raise_service_error(exc) -> None:
+    """Converte um ServiceError em resposta HTTP com {code, message}."""
+    raise HTTPException(
+        status_code=exc.status, detail={"code": exc.code, "message": exc.message}
+    )
+
+
+def post_only_guard(router, path: str, role: str) -> None:
+    """Registra um GET em `path` que só devolve 405 DEPOIS de checar o perfil.
+
+    Assim um leitor que digita a URL de uma rota de escrita recebe 403 (e não 405),
+    como exige o critério de aceitação do CP1.
+    """
+
+    @router.get(path, include_in_schema=False, dependencies=[Depends(require_role(role))])
+    def _post_only():
+        raise HTTPException(status_code=405, detail="Use POST")

@@ -2,6 +2,8 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 argon2-cffi>=23.1
 pydantic>=2.6
+python-multipart>=0.0.9   # upload de arquivos (CP3)
+paramiko>=3.4             # SSH (CP5/CP6)
 # apenas para testes
 pytest>=8.0
 httpx>=0.27

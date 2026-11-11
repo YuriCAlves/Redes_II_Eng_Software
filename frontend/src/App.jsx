@@ -1,17 +1,21 @@
 import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
+import { CommBadge, OperationsPanel, Toasts } from "./notify.jsx";
 import Login from "./pages/Login.jsx";
-import ModulePage from "./pages/ModulePage.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
+import Services from "./pages/Services.jsx";
+import Files from "./pages/Files.jsx";
+import Email from "./pages/Email.jsx";
+import Ssh from "./pages/Ssh.jsx";
+import Logs from "./pages/Logs.jsx";
 
-// Abas do menu principal (CP1). Cada uma aponta para um endpoint de leitura
-// que o backend já protege; o conteúdo real vem nos próximos checkpoints.
 export const TABS = [
-  { path: "/visao-geral", label: "Visão Geral", endpoint: "/metrics", cp: "CP2" },
-  { path: "/servicos", label: "Serviços", endpoint: "/services", cp: "CP2" },
-  { path: "/arquivos", label: "Arquivos", endpoint: "/files", cp: "CP3" },
-  { path: "/email", label: "E-mail", endpoint: "/email/inbox", cp: "CP4" },
-  { path: "/ssh", label: "SSH", endpoint: "/ssh/info", cp: "CP5" },
-  { path: "/logs", label: "Logs", endpoint: "/logs", cp: "CP6" },
+  { path: "/visao-geral", label: "Visão Geral", element: <Dashboard /> },
+  { path: "/servicos", label: "Serviços", element: <Services /> },
+  { path: "/arquivos", label: "Arquivos", element: <Files /> },
+  { path: "/email", label: "E-mail", element: <Email /> },
+  { path: "/ssh", label: "SSH", element: <Ssh /> },
+  { path: "/logs", label: "Logs", element: <Logs /> },
 ];
 
 function Layout() {
@@ -27,6 +31,7 @@ function Layout() {
             </NavLink>
           ))}
         </nav>
+        <CommBadge />
         <div className="user">
           <span>
             {user.username} <em className={`badge ${user.role}`}>{user.role}</em>
@@ -36,7 +41,9 @@ function Layout() {
       </header>
       <main>
         <Outlet />
+        <OperationsPanel />
       </main>
+      <Toasts />
     </div>
   );
 }
@@ -55,7 +62,7 @@ export default function App() {
       <Route path="/login" element={user ? <Navigate to="/visao-geral" replace /> : <Login />} />
       <Route element={<Protected />}>
         {TABS.map((t) => (
-          <Route key={t.path} path={t.path} element={<ModulePage tab={t} />} />
+          <Route key={t.path} path={t.path} element={t.element} />
         ))}
       </Route>
       <Route path="*" element={<Navigate to="/visao-geral" replace />} />

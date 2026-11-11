@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 
 from . import config
 from .db import init_db
-from .routers import auth, modules
+from .routers import auth, dashboard, files, logs, mail, ssh
 
 
 @asynccontextmanager
@@ -17,7 +17,11 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Console N2 - Administração de Serviços", lifespan=lifespan)
 
 app.include_router(auth.router)
-app.include_router(modules.router)
+app.include_router(dashboard.router)
+app.include_router(files.router)
+app.include_router(mail.router)
+app.include_router(ssh.router)
+app.include_router(logs.router)
 
 
 @app.get("/api/health")

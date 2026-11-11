@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Console N2</title>
+<style>
+  :root { --bg:#f4f6f8; --fg:#1c2530; --muted:#667085; --card:#fff; --line:#d9dee5; --primary:#2563eb;
+          --ok:#067647; --okbg:#dcfae6; --bad:#b42318; --badbg:#fee4e2; --warn:#b54708; --warnbg:#fffaeb; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  .legend { background:#fff8e1; border-bottom:1px solid #f0d98c; padding:.5rem 1.25rem; font-size:.85rem; }
+  .p2 { display:inline-block; background:#7c3aed; color:#fff; font-size:.68rem; font-weight:700; padding:.05rem .45rem; border-radius:4px; margin-left:.4rem; vertical-align:middle; }
+  .topbar { display:flex; align-items:center; gap:1.25rem; padding:0 1.25rem; height:54px; background:#101828; color:#fff; }
+  .topbar nav { display:flex; gap:.25rem; flex:1; flex-wrap:wrap; }
+  .topbar a { color:#cbd5e1; text-decoration:none; padding:.45rem .8rem; border-radius:6px; cursor:pointer; }
+  .topbar a.on { background:var(--primary); color:#fff; }
+  main { max-width:1100px; margin:1.25rem auto; padding:0 1rem; display:grid; gap:1rem; }
+  .screen { display:none; gap:1rem; } .screen.on { display:grid; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1.1rem; }
+  h2,h3 { margin:0 0 .6rem; } .muted { color:var(--muted); } .small { font-size:.8rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:1rem; }
+  .stat b { display:block; font-size:1.6rem; margin:.2rem 0; } .stat span { font-size:.75rem; color:var(--muted); text-transform:uppercase; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:.45rem .5rem; border-bottom:1px solid var(--line); font-size:.88rem; } th { color:var(--muted); font-weight:500; }
+  .pill { padding:.1rem .55rem; border-radius:999px; font-size:.78rem; font-weight:600; }
+  .ok { background:var(--okbg); color:var(--ok); } .bad { background:var(--badbg); color:var(--bad); } .warn { background:var(--warnbg); color:var(--warn); } .unk { background:#eaecf0; color:#475467; }
+  .alert { padding:.6rem .8rem; border-radius:6px; font-size:.88rem; border:1px solid; margin:.4rem 0; }
+  .alert.ok { border-color:#abefc6; } .alert.bad { border-color:#fecdca; } .alert.warn { border-color:#fedf89; }
+  button, .btn { background:var(--primary); color:#fff; border:0; border-radius:6px; padding:.5rem .9rem; cursor:pointer; font:inherit; }
+  button.sec { background:#475467; } button[disabled] { opacity:.5; cursor:not-allowed; }
+  input, select, textarea { padding:.5rem; border:1px solid var(--line); border-radius:6px; font:inherit; width:100%; }
+  label { display:grid; gap:.25rem; font-size:.88rem; margin-bottom:.6rem; }
+  .row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; } .row > * { width:auto; }
+  .login { max-width:360px; margin:2rem auto; } .login .states button { background:#eaecf0; color:var(--fg); }
+  .sub { display:flex; gap:.4rem; margin-bottom:.6rem; } .sub button { background:#eaecf0; color:var(--fg); } .sub button.on { background:var(--primary); color:#fff; }
+  .pane { display:none; } .pane.on { display:block; }
+  pre { background:#0b1220; color:#d1e0ff; padding:1rem; border-radius:8px; height:210px; overflow:auto; font-size:.76rem; margin:0; }
+  code { font-size:.75rem; word-break:break-all; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:1rem; } @media (max-width:760px){ .two { grid-template-columns:1fr; } }
+  .p2box { border:2px dashed #7c3aed; background:#faf5ff; }
+</style>
+</head>
+<body>
+<div class="legend"><b>Mockup navegável — Console N2.</b> Dados fictícios, apenas para ilustrar as telas.
+  Elementos com <span class="p2">PARTE 2</span> estão previstos mas <b>não</b> fazem parte desta entrega.</div>
+
+<div id="shell" style="display:none">
+  <header class="topbar"><strong>Console N2</strong>
+    <nav id="nav">
+      <a data-s="home" class="on">Visão Geral</a><a data-s="svc">Serviços</a><a data-s="files">Arquivos</a>
+      <a data-s="mail">E-mail</a><a data-s="ssh">SSH</a><a data-s="logs">Logs</a>
+    </nav>
+    <span class="small">admin1 · <b>admin</b></span> <button class="sec" onclick="show('login')">Sair</button>
+  </header>
+</div>
+
+<main>
+<!-- 1. LOGIN -->
+<section class="screen on" id="login">
+  <div class="card login">
+    <h2>Console de Administração</h2><p class="muted small">Redes II — N2</p>
+    <div id="lg-alert"></div>
+    <label>Usuário<input value="admin1"></label>
+    <label>Senha<input type="password" value="••••••••••"></label>
+    <button onclick="enter()">Entrar</button>
+    <p class="muted small" style="margin-top:1rem">Estados da tela (para o mockup):</p>
+    <div class="row states">
+      <button onclick="lg('')">Válido</button><button onclick="lg('bad')">Autenticação inválida</button><button onclick="lg('exp')">Sessão expirada</button>
+    </div>
+  </div>
+</section>
+
+<!-- 2. VISÃO GERAL -->
+<section class="screen" id="home">
+  <div class="row" style="justify-content:space-between"><h2>Visão Geral</h2><span class="muted small">Última atualização: 14:32:05</span></div>
+  <div class="alert warn" id="stale" style="display:none">Dados desatualizados há 23 s — sem comunicação com o Debian. Exibindo a última coleta.</div>
+  <div class="grid">
+    <div class="card stat"><span>CPU</span><b>12%</b></div>
+    <div class="card stat"><span>Memória</span><b>41%</b><small class="muted">820 / 2000 MB</small></div>
+    <div class="card stat"><span>Disco /</span><b>34%</b><small class="muted">6,1 / 18 GB</small></div>
+    <div class="card stat"><span>Disco arquivos</span><b>34%</b><small class="muted">6,1 / 18 GB</small></div>
+    <div class="card stat"><span>Uptime</span><b>2d 3h</b></div>
+    <div class="card stat"><span>Latência HTTP</span><b>8,4 ms</b><small class="muted">HTTP 200</small></div>
+  </div>
+  <div class="card"><h3>CPU e memória (últimos 15 min)</h3>
+    <svg viewBox="0 0 600 120" width="100%" height="140" role="img" aria-label="Gráfico ilustrativo">
+      <g stroke="#e5e7eb"><line x1="0" y1="30" x2="600" y2="30"/><line x1="0" y1="60" x2="600" y2="60"/><line x1="0" y1="90" x2="600" y2="90"/></g>
+      <polyline fill="none" stroke="#2563eb" stroke-width="2" points="0,95 60,92 120,80 180,98 240,70 300,88 360,96 420,84 480,90 540,86 600,92"/>
+      <polyline fill="none" stroke="#dc2626" stroke-width="2" points="0,64 60,63 120,62 180,62 240,60 300,61 360,60 420,59 480,60 540,59 600,59"/>
+    </svg>
+    <span class="small"><b style="color:#2563eb">— CPU</b> &nbsp; <b style="color:#dc2626">— RAM</b></span>
+    <button class="sec" style="float:right" onclick="stale.style.display=stale.style.display=='none'?'block':'none'">Alternar aviso de desatualização</button></div>
+  <div class="card"><h3>Serviços</h3><table><tr><th>Serviço</th><th>Estado</th><th>systemd</th><th>Porta</th></tr>
+    <tr><td>apache2</td><td><span class="pill ok">ativo</span></td><td class="muted">active (running)</td><td class="muted">80 · aberta</td></tr>
+    <tr><td>vsftpd</td><td><span class="pill ok">ativo</span></td><td class="muted">active (running)</td><td class="muted">21 · aberta</td></tr>
+    <tr><td>postfix</td><td><span class="pill ok">ativo</span></td><td class="muted">active (exited)</td><td class="muted">25 · aberta</td></tr>
+    <tr><td>dovecot</td><td><span class="pill bad">falha</span></td><td class="muted">failed (failed)</td><td class="muted">143 · fechada</td></tr>
+    <tr><td>ssh</td><td><span class="pill unk">desconhecido</span></td><td class="muted">—</td><td class="muted">22 · desconhecido</td></tr></table></div>
+</section>
+
+<!-- Serviços (Parte 2) -->
+<section class="screen" id="svc">
+  <div class="card"><h2>Serviços</h2><p class="muted">Tabela de estados igual à da Visão Geral.</p>
+    <div class="card p2box"><h3>Controles de serviço <span class="p2">PARTE 2</span></h3>
+      <div class="row"><button disabled>Iniciar</button><button disabled>Parar</button><button disabled>Reiniciar</button></div>
+      <p class="small muted">Start/stop de serviços e edição de configurações não fazem parte da Parte 1.</p></div></div>
+  <div class="card p2box"><h3>Auditoria <span class="p2">PARTE 2</span></h3><p class="small muted">Registro persistente de quem fez o quê (usuário, ação, horário, resultado).</p></div>
+</section>
+
+<!-- 3. ARQUIVOS -->
+<section class="screen" id="files">
+  <h2>Arquivos (FTP)</h2>
+  <div class="card"><h3>Enviar arquivo</h3>
+    <label>Arquivo (pdf, txt, png, jpg, jpeg)<input type="file"></label>
+    <label style="display:flex;gap:.4rem;align-items:center"><input type="checkbox" style="width:auto"> Substituir se já existir</label>
+    <button>Enviar</button></div>
+  <div class="card"><h3>Resultado da transferência</h3><p><b>relatorio.pdf</b> · 248 KB</p>
+    <table><tr><th>SHA-256</th><th>Valor</th><th>Comparação</th></tr>
+      <tr><td>Original</td><td><code>9f2c…e81a</code></td><td>✅</td></tr>
+      <tr><td>Recuperado via FTP</td><td><code>9f2c…e81a</code></td><td>✅ confere</td></tr>
+      <tr><td>Publicado (HTTP)</td><td><code>9f2c…e81a</code></td><td>✅ confere</td></tr></table>
+    <p>Link: <a href="#">http://site.empresa.test/arquivos/relatorio.pdf</a></p>
+    <div class="alert bad">Variante de erro: <b>falha de conexão FTP</b> (servidor inalcançável) ≠ <b>falha de transferência</b> (queda durante o envio).</div></div>
+  <div class="card"><h3>Arquivos no servidor</h3><table><tr><th>Nome</th><th>Tamanho</th><th>Modificado</th><th>Ações</th></tr>
+    <tr><td>relatorio.pdf</td><td>248 KB</td><td>04/11/2026 14:30</td><td><a href="#">Baixar</a> · <a href="#">Link HTTP</a></td></tr>
+    <tr><td>logo.png</td><td>12 KB</td><td>03/11/2026 09:12</td><td><a href="#">Baixar</a> · <a href="#">Link HTTP</a></td></tr></table></div>
+</section>
+
+<!-- 4. E-MAIL -->
+<section class="screen" id="mail">
+  <div class="row" style="justify-content:space-between"><h2>E-mail</h2>
+    <label class="row" style="margin:0">Conta <select><option>aluno@empresa.test</option><option>suporte@empresa.test</option></select></label></div>
+  <div class="sub" id="msub"><button data-p="compose" class="on">Escrever</button><button data-p="inbox">Recebidas</button><button data-p="sent">Enviados</button></div>
+  <div class="pane on" id="compose"><div class="card"><label>Para<input value="suporte@empresa.test"></label><label>Assunto<input value="Teste N2"></label>
+    <label>Mensagem<textarea rows="5">Olá, mensagem de teste.</textarea></label><button>Enviar</button></div>
+    <div class="card"><h3>Resultado do envio</h3>
+      <div class="alert ok"><b>SMTP:</b> mensagem aceita pelo servidor.</div>
+      <div class="alert warn"><b>IMAP (Enviados):</b> a mensagem FOI enviada, mas não foi salva em Enviados. <b>Não reenvie.</b></div></div></div>
+  <div class="pane" id="inbox"><div class="two"><div class="card"><table><tr><th>De</th><th>Assunto</th><th>Data</th></tr>
+    <tr><td>aluno@empresa.test</td><td>Teste N2</td><td>04/11 14:35</td></tr><tr><td>root@empresa.test</td><td>Aviso</td><td>03/11 08:00</td></tr></table></div>
+    <div class="card"><h3>Teste N2</h3><p class="muted small">De: aluno@empresa.test<br>Para: suporte@empresa.test</p><p>Olá, mensagem de teste.</p></div></div></div>
+  <div class="pane" id="sent"><div class="card"><table><tr><th>Para</th><th>Assunto</th><th>Data</th></tr>
+    <tr><td>suporte@empresa.test</td><td>Teste N2</td><td>04/11 14:35</td></tr></table></div></div>
+</section>
+
+<!-- 5. SSH -->
+<section class="screen" id="ssh">
+  <h2>SSH</h2>
+  <div class="card"><h3>Servidor</h3><table>
+    <tr><td class="muted">Hostname atual</td><td>debian-servidor</td></tr><tr><td class="muted">Usuário SSH</td><td>yuri</td></tr>
+    <tr><td class="muted">Sistema</td><td>Debian GNU/Linux 13 (trixie)</td></tr><tr><td class="muted">Kernel</td><td>6.12.x</td></tr>
+    <tr><td class="muted">Uptime</td><td>up 2 days, 3 hours</td></tr><tr><td class="muted">Host key</td><td><code>SHA256:Zk3…q9A</code></td></tr></table></div>
+  <div class="card"><h3>Alterar hostname</h3><label>Novo hostname <small class="muted">(atual: debian-servidor)</small><input placeholder="ex.: servidor-teste"></label>
+    <div class="alert warn">Formato inválido: use 2 a 63 caracteres (a-z, 0-9 e hífen).</div>
+    <div class="row"><button>Alterar</button><button class="sec">Restaurar (debian-servidor)</button></div>
+    <div class="alert ok">Alteração concluída. Antes: <code>debian-servidor</code> → Depois: <code>servidor-teste</code></div></div>
+  <div class="card p2box"><h3>Edição de configurações <span class="p2">PARTE 2</span></h3><p class="small muted">Edição de arquivos de configuração de serviços.</p></div>
+</section>
+
+<!-- 6. LOGS -->
+<section class="screen" id="logs">
+  <h2>Logs técnicos</h2>
+  <div class="card"><div class="row"><label class="row" style="margin:0">Serviço <select><option>vsftpd</option><option>apache2</option><option>postfix</option><option>dovecot</option><option>ssh</option></select></label>
+    <label class="row" style="margin:0">Linhas <select><option>20</option><option selected>50</option><option>100</option></select></label><button>Atualizar</button>
+    <span class="muted small">Última atualização: 14:33:10</span></div></div>
+  <div class="alert warn">Estado desconhecido: sem conexão SSH com o Debian. (Não significa que o serviço esteja parado.)</div>
+  <pre>Nov 04 14:30:11 debian-servidor vsftpd[2211]: CONNECT: Client "192.168.100.10"
+Nov 04 14:30:11 debian-servidor vsftpd[2210]: [ftpuser] OK LOGIN: Client "192.168.100.10"
+Nov 04 14:30:12 debian-servidor vsftpd[2214]: [ftpuser] OK UPLOAD: Client "192.168.100.10", "/arquivos/relatorio.pdf", 253952 bytes
+Nov 04 14:30:12 debian-servidor vsftpd[2216]: [ftpuser] OK DOWNLOAD: Client "192.168.100.10", "/arquivos/relatorio.pdf"</pre>
+  <div class="card"><h3>Notificações (toasts)</h3><div class="row"><span class="pill ok">Operação concluída</span><span class="pill bad">Falha de operação</span><span class="pill warn">Perda de comunicação com o Debian — desatualizado há 23 s</span></div></div>
+  <div class="card"><h3>Operações recentes (desta sessão)</h3><table><tr><th>Hora</th><th>Tipo</th><th>Operação</th><th>Status</th></tr>
+    <tr><td>14:35:02</td><td>E-mail</td><td>Enviar e-mail para suporte@empresa.test</td><td><span class="pill ok">concluída</span></td></tr>
+    <tr><td>14:30:12</td><td>Upload FTP</td><td>Upload de relatorio.pdf</td><td><span class="pill ok">concluída</span></td></tr>
+    <tr><td>14:28:40</td><td>SSH</td><td>Alterar hostname para servidor-teste</td><td><span class="pill bad">falha</span></td></tr>
+    <tr><td>14:36:00</td><td>Upload FTP</td><td>Upload de foto.png</td><td><span class="pill warn">em andamento</span></td></tr></table></div>
+</section>
+</main>
+
+<script>
+  const shell = document.getElementById("shell");
+  function show(id){
+    document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === id));
+    document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("on", a.dataset.s === id));
+    shell.style.display = id === "login" ? "none" : "block";
+    window.scrollTo(0, 0);
+  }
+  function enter(){ show("home"); }
+  function lg(state){
+    const a = document.getElementById("lg-alert");
+    a.innerHTML = state === "bad" ? '<div class="alert bad">Usuário ou senha inválidos.</div>'
+      : state === "exp" ? '<div class="alert warn">Sua sessão expirou. Entre novamente.</div>' : "";
+  }
+  document.querySelectorAll("#nav a").forEach(a => a.addEventListener("click", () => show(a.dataset.s)));
+  document.querySelectorAll("#msub button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("#msub button").forEach(x => x.classList.toggle("on", x === b));
+    document.querySelectorAll("#mail .pane").forEach(p => p.classList.toggle("on", p.id === b.dataset.p));
+  }));
+  document.querySelectorAll("a[href='#']").forEach(a => a.addEventListener("click", e => e.preventDefault()));
+</script>
+</body>
+</html>
