@@ -127,15 +127,15 @@ class FakeDhcpSsh:
 
     def run(self, client, argv, timeout=15):
         self.commands.append(argv)
-        if argv[:3] == ["sudo", "-n", "cat"] and argv[3] == config.KEA_CONFIG_PATH:
+        if argv[:3] == ["sudo", "-n", "/usr/bin/cat"] and argv[3] == config.KEA_CONFIG_PATH:
             return 0, self.config_text, ""
-        if argv[0] == "kea-dhcp4" and argv[1] == "-t":
+        if argv[0] == config.KEA_DHCP4_BIN and argv[1] == "-t":
             return (0, "configuration seems sane", "") if self.checktest_ok else (1, "", "erro de sintaxe")
-        if argv[:3] == ["sudo", "-n", "cp"]:
+        if argv[:3] == ["sudo", "-n", "/usr/bin/cp"]:
             if self.cp_ok:
                 self.config_text = self.sftp_store[argv[3]]
             return (0, "", "") if self.cp_ok else (1, "", "sudoers")
-        if argv[:3] == ["sudo", "-n", "systemctl"]:
+        if argv[:3] == ["sudo", "-n", "/usr/bin/systemctl"]:
             return (0, "", "") if self.reload_ok else (1, "", "falha ao recarregar")
         if argv[0] == "rm":
             return 0, "", ""
@@ -190,3 +190,14 @@ def test_restore_reapplies_previous_version(tmpdb, monkeypatch):
     hc.restore_last_version(USER)
     cfg = hc.read_config()
     assert len(cfg["reservations"]) == 1
+
+
+def test_every_sudo_command_matches_sudoers_file(tmpdb, monkeypatch):
+    from sudoers_rules import allowed_commands, sudo_commands
+
+    ssh = FakeDhcpSsh(monkeypatch)
+    hc.create_reservation({"hw-address": "aa:bb:cc:dd:ee:02", "ip-address": "192.168.100.31"}, USER)
+    allowed = allowed_commands()
+    issued = sudo_commands(ssh.commands)
+    assert issued and all(c in allowed for c in issued), set(issued) - allowed
+    assert f"/usr/bin/cat {config.KEA_LEASE_CSV}" in allowed

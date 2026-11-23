@@ -210,15 +210,15 @@ class FakeDnsSsh:
 
     def run(self, client, argv, timeout=15):
         self.commands.append(argv)
-        if argv[:3] == ["sudo", "-n", "cat"]:
+        if argv[:3] == ["sudo", "-n", "/usr/bin/cat"]:
             return 0, self.files[argv[3]], ""
-        if argv[0] == "named-checkzone":
+        if argv[0] == config.NAMED_CHECKZONE_BIN:
             return (0, "OK", "") if self.checkzone_ok else (1, "", "zona invalida")
-        if argv[:3] == ["sudo", "-n", "cp"]:
+        if argv[:3] == ["sudo", "-n", "/usr/bin/cp"]:
             if self.cp_ok:
                 self.files[argv[4]] = self.sftp_store[argv[3]]
             return (0, "", "") if self.cp_ok else (1, "", "sudoers")
-        if argv[:3] == ["sudo", "-n", "rndc"]:
+        if argv[:3] == ["sudo", "-n", "/usr/sbin/rndc"]:
             return (0, "", "") if self.reload_ok else (1, "", "rndc falhou")
         if argv[0] == "rm":
             return 0, "", ""
@@ -268,3 +268,16 @@ def test_restore_reapplies_previous_version(tmpdb, monkeypatch):
     dc.restore_last_version("fwd", USER)
     zone = dc.read_zone("fwd")
     assert {"name": "ftp", "type": "A", "value": "192.168.100.10"} not in zone["records"]
+
+
+def test_every_sudo_command_matches_sudoers_file(tmpdb, monkeypatch):
+    from sudoers_rules import allowed_commands, sudo_commands
+
+    ssh = FakeDnsSsh(monkeypatch)
+    dc.create_record("fwd", {"name": "ftp", "type": "A", "value": "192.168.100.10"}, USER)
+    allowed = allowed_commands()
+    issued = sudo_commands(ssh.commands)
+    assert issued and all(c in allowed for c in issued), set(issued) - allowed
+    # a zona reversa usa o mesmo fluxo, com os próprios caminhos fixos
+    assert f"/usr/bin/cp {dc._stage_path('rev')} {config.DNS_ZONE_REV_PATH}" in allowed
+    assert f"/usr/sbin/rndc reload {config.DNS_ZONE_REV_NAME}" in allowed

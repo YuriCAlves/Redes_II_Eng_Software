@@ -237,7 +237,7 @@ def read_zone(zone: str) -> dict:
     """Lê a zona do Debian e devolve o cabeçalho (oculto) e os registros gerenciados."""
     client = ssh_client.connect()
     try:
-        rc, out, err = ssh_client.run(client, ["sudo", "-n", "cat", _zone_path(zone)])
+        rc, out, err = ssh_client.run(client, ["sudo", "-n", "/usr/bin/cat", _zone_path(zone)])
         if rc != 0:
             raise ssh_client.SshCommandError("Não foi possível ler o arquivo de zona.")
     finally:
@@ -247,11 +247,16 @@ def read_zone(zone: str) -> dict:
     return {"zone": zone, "zone_name": _zone_name(zone), "records": records, "raw_lines": len(lines)}
 
 
+def _stage_path(zone: str) -> str:
+    """Nome FIXO na pasta privada do console (o sudoers não aceita curinga)."""
+    return f"{config.STAGE_DIR}/dns-{zone}.zone"
+
+
 def _apply(zone: str, records: list[dict], user: dict, note: str) -> dict:
     with _lock:
         client = ssh_client.connect()
         try:
-            rc, current_text, err = ssh_client.run(client, ["sudo", "-n", "cat", _zone_path(zone)])
+            rc, current_text, err = ssh_client.run(client, ["sudo", "-n", "/usr/bin/cat", _zone_path(zone)])
             if rc != 0:
                 raise ssh_client.SshCommandError("Não foi possível ler o arquivo de zona atual.")
             before, _, after = split_managed_block(current_text)
@@ -260,7 +265,7 @@ def _apply(zone: str, records: list[dict], user: dict, note: str) -> dict:
             before = _bump_serial(before, serial)
             new_text = before + body + after
 
-            tmp_path = f"/tmp/console-dns-{zone}-{serial}.zone"
+            tmp_path = _stage_path(zone)
             sftp = client.open_sftp()
             try:
                 with sftp.open(tmp_path, "w") as f:
@@ -269,7 +274,7 @@ def _apply(zone: str, records: list[dict], user: dict, note: str) -> dict:
                 sftp.close()
 
             rc, out, err = ssh_client.run(
-                client, ["named-checkzone", _zone_name(zone), tmp_path], timeout=15
+                client, [config.NAMED_CHECKZONE_BIN, _zone_name(zone), tmp_path], timeout=15
             )
             if rc != 0:
                 ssh_client.run(client, ["rm", "-f", tmp_path])
@@ -279,14 +284,14 @@ def _apply(zone: str, records: list[dict], user: dict, note: str) -> dict:
             audit.save_config_version("dns_" + zone, user["username"], current_text, note)
 
             rc, _, err = ssh_client.run(
-                client, ["sudo", "-n", "cp", tmp_path, _zone_path(zone)], timeout=15
+                client, ["sudo", "-n", "/usr/bin/cp", tmp_path, _zone_path(zone)], timeout=15
             )
             ssh_client.run(client, ["rm", "-f", tmp_path])
             if rc != 0:
                 raise ssh_client.SshCommandError("O Debian recusou substituir o arquivo de zona (sudoers).")
 
             rc, _, err = ssh_client.run(
-                client, ["sudo", "-n", "rndc", "reload", _zone_name(zone)], timeout=15
+                client, ["sudo", "-n", "/usr/sbin/rndc", "reload", _zone_name(zone)], timeout=15
             )
             if rc != 0:
                 raise ssh_client.SshCommandError("Zona gravada, mas o reload (rndc) falhou.")

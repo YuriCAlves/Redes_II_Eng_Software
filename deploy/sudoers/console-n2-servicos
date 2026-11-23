@@ -1,0 +1,20 @@
+# /etc/sudoers.d/console-n2-servicos — Parte 2 (DNS e DHCP) do Console N2.
+# Instale pelo roteiro do README (visudo -cf + install); NÃO copie de PDF.
+# Cada regra é um comando exato: sem curingas, sem sudo irrestrito.
+# Os arquivos de /var/lib/console-n2 têm nome fixo (pasta do yuri, modo 700).
+
+Cmnd_Alias CONSOLE_DNS = \
+    /usr/bin/cat /etc/bind/db.empresa.test, \
+    /usr/bin/cat /etc/bind/db.192.168.100, \
+    /usr/bin/cp /var/lib/console-n2/dns-fwd.zone /etc/bind/db.empresa.test, \
+    /usr/bin/cp /var/lib/console-n2/dns-rev.zone /etc/bind/db.192.168.100, \
+    /usr/sbin/rndc reload empresa.test, \
+    /usr/sbin/rndc reload 100.168.192.in-addr.arpa
+
+Cmnd_Alias CONSOLE_DHCP = \
+    /usr/bin/cat /etc/kea/kea-dhcp4.conf, \
+    /usr/bin/cat /var/lib/kea/kea-leases4.csv, \
+    /usr/bin/cp /var/lib/console-n2/kea-dhcp4.json /etc/kea/kea-dhcp4.conf, \
+    /usr/bin/systemctl reload-or-restart kea-dhcp4-server
+
+yuri ALL=(root) NOPASSWD: CONSOLE_DNS, CONSOLE_DHCP

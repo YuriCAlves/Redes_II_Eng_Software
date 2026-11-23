@@ -24,7 +24,6 @@ import ipaddress
 import json
 import re
 import threading
-from datetime import datetime, timezone
 
 from . import audit, config, ssh_client
 from .errors import Conflict, InvalidInput, ServiceError
@@ -110,7 +109,7 @@ def _find_subnet(cfg: dict) -> dict:
 def read_config() -> dict:
     client = ssh_client.connect()
     try:
-        rc, out, err = ssh_client.run(client, ["sudo", "-n", "cat", config.KEA_CONFIG_PATH])
+        rc, out, err = ssh_client.run(client, ["sudo", "-n", "/usr/bin/cat", config.KEA_CONFIG_PATH])
         if rc != 0:
             raise ssh_client.SshCommandError("Não foi possível ler a configuração do Kea.")
     finally:
@@ -133,7 +132,7 @@ def _apply(reservations: list[dict], user: dict, note: str) -> dict:
     with _lock:
         client = ssh_client.connect()
         try:
-            rc, current_text, err = ssh_client.run(client, ["sudo", "-n", "cat", config.KEA_CONFIG_PATH])
+            rc, current_text, err = ssh_client.run(client, ["sudo", "-n", "/usr/bin/cat", config.KEA_CONFIG_PATH])
             if rc != 0:
                 raise ssh_client.SshCommandError("Não foi possível ler a configuração atual do Kea.")
             cfg = json.loads(current_text)
@@ -141,8 +140,7 @@ def _apply(reservations: list[dict], user: dict, note: str) -> dict:
             subnet["reservations"] = reservations
             new_text = json.dumps(cfg, indent=4, ensure_ascii=False) + "\n"
 
-            stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-            tmp_path = f"/tmp/console-dhcp-{stamp}.json"
+            tmp_path = f"{config.STAGE_DIR}/kea-dhcp4.json"  # nome fixo: sudoers sem curinga
             sftp = client.open_sftp()
             try:
                 with sftp.open(tmp_path, "w") as f:
@@ -150,20 +148,20 @@ def _apply(reservations: list[dict], user: dict, note: str) -> dict:
             finally:
                 sftp.close()
 
-            rc, out, err = ssh_client.run(client, ["kea-dhcp4", "-t", tmp_path], timeout=15)
+            rc, out, err = ssh_client.run(client, [config.KEA_DHCP4_BIN, "-t", tmp_path], timeout=15)
             if rc != 0:
                 ssh_client.run(client, ["rm", "-f", tmp_path])
                 raise DhcpValidationError("kea-dhcp4 -t recusou a configuração (reserva inválida ou conflito).")
 
             audit.save_config_version("dhcp", user["username"], current_text, note)
 
-            rc, _, err = ssh_client.run(client, ["sudo", "-n", "cp", tmp_path, config.KEA_CONFIG_PATH], timeout=15)
+            rc, _, err = ssh_client.run(client, ["sudo", "-n", "/usr/bin/cp", tmp_path, config.KEA_CONFIG_PATH], timeout=15)
             ssh_client.run(client, ["rm", "-f", tmp_path])
             if rc != 0:
                 raise ssh_client.SshCommandError("O Debian recusou substituir kea-dhcp4.conf (sudoers).")
 
             rc, _, err = ssh_client.run(
-                client, ["sudo", "-n", "systemctl", "reload-or-restart", config.KEA_SYSTEMD_UNIT], timeout=20
+                client, ["sudo", "-n", "/usr/bin/systemctl", "reload-or-restart", config.KEA_SYSTEMD_UNIT], timeout=20
             )
             if rc != 0:
                 raise ssh_client.SshCommandError("Configuração gravada, mas o Kea não recarregou (systemctl).")
@@ -230,7 +228,7 @@ def parse_lease_csv(text: str) -> list[dict]:
 def read_leases() -> dict:
     client = ssh_client.connect()
     try:
-        rc, out, err = ssh_client.run(client, ["sudo", "-n", "cat", config.KEA_LEASE_CSV])
+        rc, out, err = ssh_client.run(client, ["sudo", "-n", "/usr/bin/cat", config.KEA_LEASE_CSV])
         if rc != 0:
             raise ssh_client.SshCommandError("Não foi possível ler o arquivo de concessões do Kea.")
     finally:

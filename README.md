@@ -189,19 +189,11 @@ $TTL 3600
 
 Registre as duas zonas em `/etc/named.conf.local` (ou `named.conf.default-zones`) e restrinja a
 recursão à rede do laboratório em `named.conf.options` (`allow-recursion { 192.168.100.0/24; };` —
-nunca um resolvedor aberto). Permissões para o console (sem sudo irrestrito):
+nunca um resolvedor aberto). Confirme com `sudo named-checkconf && sudo systemctl restart bind9`.
 
-```bash
-sudo visudo -f /etc/sudoers.d/console-dns
-# conteúdo:
-yuri ALL=(root) NOPASSWD: /usr/bin/cat /etc/bind/db.empresa.test, \
-  /usr/bin/cat /etc/bind/db.192.168.100, \
-  /usr/bin/cp /tmp/console-dns-*.zone /etc/bind/db.empresa.test, \
-  /usr/bin/cp /tmp/console-dns-*.zone /etc/bind/db.192.168.100, \
-  /usr/sbin/rndc reload empresa.test, /usr/sbin/rndc reload 100.168.192.in-addr.arpa
-```
-
-Confirme com `sudo named-checkconf && sudo systemctl restart bind9`.
+As permissões do console para DNS e DHCP (sem sudo irrestrito e sem curingas) estão prontas em
+[`deploy/sudoers/console-n2-servicos`](deploy/sudoers/console-n2-servicos) — veja
+[Permissões DNS/DHCP](#permissões-dnsdhcp-sudoers) abaixo.
 
 **DHCP (incremento 2)** — o console reescreve `/etc/kea/kea-dhcp4.conf` inteiro a cada alteração de
 reserva (sempre validado com `kea-dhcp4 -t` antes de aplicar). Esqueleto mínimo:
@@ -225,19 +217,25 @@ reserva (sempre validado com `kea-dhcp4 -t` antes de aplicar). Esqueleto mínimo
 ```
 
 Use a interface **interna** do laboratório (nunca a NAT) e confirme que nenhum outro DHCP responde
-nesse segmento (nem o do hipervisor). Permissões:
+nesse segmento (nem o do hipervisor).
+
+#### Permissões DNS/DHCP (sudoers)
+
+Tudo **no Debian**, dentro da pasta do projeto (o arquivo vem do repositório — não copie regras
+de sudoers de PDF ou navegador, porque a quebra de linha corrompe o arquivo):
 
 ```bash
-sudo visudo -f /etc/sudoers.d/console-dhcp
-# conteúdo:
-yuri ALL=(root) NOPASSWD: /usr/bin/cat /etc/kea/kea-dhcp4.conf, \
-  /usr/bin/cp /tmp/console-dhcp-*.json /etc/kea/kea-dhcp4.conf, \
-  /usr/bin/cat /var/lib/kea/kea-leases4.csv, \
-  /usr/bin/systemctl reload-or-restart kea-dhcp4-server
+sudo install -d -o yuri -g yuri -m 700 /var/lib/console-n2
+sudo visudo -cf deploy/sudoers/console-n2-servicos
+sudo install -m 440 -o root -g root deploy/sudoers/console-n2-servicos /etc/sudoers.d/
+sudo -l -U yuri
 ```
 
-Confira o nome real da unidade com `systemctl list-unit-files '*kea*'` e ajuste
-`CONSOLE_KEA_SYSTEMD_UNIT` se for diferente.
+`/var/lib/console-n2` é onde o console grava a configuração nova para validar com
+`named-checkzone` / `kea-dhcp4 -t` antes de aplicar. Os nomes de arquivo ali são fixos, por isso
+as regras não precisam de `*` (curinga em argumento de sudoers deixaria o `cp` aceitar caminhos
+extras). Se a unidade do Kea não se chamar `kea-dhcp4-server` (`systemctl list-unit-files
+'*kea*'`), ajuste a última regra do arquivo **e** `CONSOLE_KEA_SYSTEMD_UNIT` no `.env`.
 
 ### 5. Usuários do console
 

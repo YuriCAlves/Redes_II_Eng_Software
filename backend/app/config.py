@@ -106,4 +106,12 @@ KEA_CONFIG_PATH = os.environ.get("CONSOLE_KEA_CONFIG_PATH", "/etc/kea/kea-dhcp4.
 KEA_LEASE_CSV = os.environ.get("CONSOLE_KEA_LEASE_CSV", "/var/lib/kea/kea-leases4.csv")
 KEA_SYSTEMD_UNIT = os.environ.get("CONSOLE_KEA_SYSTEMD_UNIT", "kea-dhcp4-server")
 DHCP_SUBNET = os.environ.get("CONSOLE_DHCP_SUBNET", "192.168.100.0/24")
+
+# Pasta privada (dono yuri, modo 700) onde o console grava a configuração nova
+# para validar antes de aplicar. Os nomes dentro dela são FIXOS, para que as
+# regras do sudoers não precisem de curinga (deploy/sudoers/console-n2-servicos).
+STAGE_DIR = os.environ.get("CONSOLE_STAGE_DIR", "/var/lib/console-n2")
+# Caminhos absolutos: o PATH de uma sessão SSH sem login no Debian não inclui /usr/sbin.
+NAMED_CHECKZONE_BIN = os.environ.get("CONSOLE_NAMED_CHECKZONE_BIN", "/usr/bin/named-checkzone")
+KEA_DHCP4_BIN = os.environ.get("CONSOLE_KEA_DHCP4_BIN", "/usr/sbin/kea-dhcp4")
 DHCP_RESERVED_INFRA = ("192.168.100.10", "192.168.100.20")  # Debian e Ubuntu: nunca reservar/alocar
