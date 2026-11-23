@@ -158,7 +158,7 @@ $TTL 3600
                   900        ; retry
                   604800     ; expire
                   3600 )     ; minimum
-        IN  NS    ns.empresa.test.
+@       IN  NS    ns.empresa.test.
 ns      IN  A     192.168.100.10
 ; ===== CONSOLE:INICIO (gerado pelo console, nao editar a mao) =====
 site    IN  A     192.168.100.10
@@ -181,7 +181,7 @@ $TTL 3600
                   900        ; retry
                   604800     ; expire
                   3600 )     ; minimum
-        IN  NS    ns.empresa.test.
+@       IN  NS    ns.empresa.test.
 ; ===== CONSOLE:INICIO (gerado pelo console, nao editar a mao) =====
 10  IN  PTR ns.empresa.test.
 ; ===== CONSOLE:FIM =====
