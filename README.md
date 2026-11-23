@@ -196,7 +196,16 @@ As permissões do console para DNS e DHCP (sem sudo irrestrito e sem curingas) e
 [Permissões DNS/DHCP](#permissões-dnsdhcp-sudoers) abaixo.
 
 **DHCP (incremento 2)** — o console reescreve `/etc/kea/kea-dhcp4.conf` inteiro a cada alteração de
-reserva (sempre validado com `kea-dhcp4 -t` antes de aplicar). Esqueleto mínimo:
+reserva (sempre validado com `kea-dhcp4 -t` antes de aplicar). O esqueleto pronto está em
+[`deploy/kea/kea-dhcp4.conf`](deploy/kea/kea-dhcp4.conf) — instale trocando a interface:
+
+```bash
+ip -br addr                                   # anote a interface 192.168.100.x
+sed 's/enp0s8/SUA_INTERFACE/' deploy/kea/kea-dhcp4.conf | sudo tee /etc/kea/kea-dhcp4.conf >/dev/null
+sudo kea-dhcp4 -t /etc/kea/kea-dhcp4.conf
+```
+
+Conteúdo:
 
 ```json
 {
@@ -206,6 +215,7 @@ reserva (sempre validado com `kea-dhcp4 -t` antes de aplicar). Esqueleto mínimo
     "valid-lifetime": 3600,
     "subnet4": [
       {
+        "id": 1,
         "subnet": "192.168.100.0/24",
         "pools": [{ "pool": "192.168.100.100 - 192.168.100.150" }],
         "option-data": [{ "name": "domain-name-servers", "data": "192.168.100.10" }],
