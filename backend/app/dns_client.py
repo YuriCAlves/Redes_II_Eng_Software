@@ -1,10 +1,14 @@
 """Incremento 1 - DNS interno (BIND 9), secao 8.1 do enunciado.
 
 Convenção adotada (documentada no README): o arquivo de zona já existente no
-Debian (escrito uma única vez, à mão, ao instalar o BIND) contém um bloco
-delimitado por marcadores, e só o CONTEÚDO DESSE BLOCO é gerenciado pelo
-console. O cabeçalho (TTL, SOA, NS) nunca é tocado por aqui, exceto o número
-de série da SOA, que fica num placeholder substituído a cada publicação.
+Debian (escrito uma única vez, à mão, ao instalar o BIND, com um serial
+numérico válido desde o início — o BIND não aceita texto no lugar do serial)
+contém um bloco delimitado por marcadores, e só o CONTEÚDO DESSE BLOCO é
+gerenciado pelo console. O cabeçalho (TTL, SOA, NS) nunca é tocado por aqui,
+exceto o número de série da SOA: a linha com o comentário "; serial" é
+localizada por regex e seu valor é substituído a cada publicação (nunca por
+um texto-placeholder, que o BIND recusaria antes mesmo de qualquer alteração
+pelo console).
 
 Fluxo de uma alteração (igual ao desenho da seção 6 do enunciado):
  1. ler a zona atual via SSH;
@@ -28,7 +32,12 @@ from .errors import Conflict, InvalidInput, ServiceError
 
 MARKER_START = "; ===== CONSOLE:INICIO (gerado pelo console, nao editar a mao) ====="
 MARKER_END = "; ===== CONSOLE:FIM ====="
-SERIAL_PLACEHOLDER = "__SERIAL__"
+# Localiza o serial da SOA (nunca por um texto fixo no lugar do número: o BIND
+# exige um número válido ali desde a primeira carga). Duas formas aceitas:
+#  - SOA em várias linhas, com o serial numa linha comentada "; serial";
+#  - SOA numa linha só: "... SOA ns. admin. ( 2026112301 3600 ... )".
+_SERIAL_LINE_RE = re.compile(r"(?m)^(\s*)(\d+)(\s*;\s*serial\b.*)$")
+_SERIAL_INLINE_RE = re.compile(r"(?i)(\bSOA\s+\S+\s+\S+\s*\(\s*)(\d+)")
 
 FORWARD_TYPES = ("A", "CNAME", "MX", "TXT")
 REVERSE_TYPES = ("PTR",)
@@ -186,15 +195,40 @@ def parse_record_line(line: str, zone: str) -> dict | None:
     return None
 
 
-def _next_serial(zone: str) -> str:
+def _find_serial(header: str) -> re.Match:
+    m = _SERIAL_LINE_RE.search(header) or _SERIAL_INLINE_RE.search(header)
+    if not m:
+        raise DnsConfigError(
+            "Não encontrei o serial numérico da SOA no cabeçalho da zona "
+            "(use uma linha '<número> ; serial' ou a SOA em uma linha só)."
+        )
+    return m
+
+
+def _bump_serial(header: str, serial: str) -> str:
+    """Troca só o número do serial da SOA, preservando o resto do cabeçalho."""
+    m = _find_serial(header)
+    return header[: m.start(2)] + serial + header[m.end(2):]
+
+
+def _next_serial(zone: str, current: int | None = None) -> str:
+    """Serial no formato AAAAMMDDnn, sempre maior que o que está no arquivo.
+
+    Se o arquivo já tem um serial igual ou maior que o calculado pela data
+    (ex.: escrito à mão hoje como 2026112301), usa o do arquivo + 1 — senão
+    os secundários e caches nunca perceberiam a mudança.
+    """
     key = f"dns_serial_{zone}"
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    current = kv_get(key)
-    if current and current.startswith(today):
-        n = int(current[-2:]) + 1
+    last = kv_get(key)
+    if last and last.startswith(today):
+        n = int(last[-2:]) + 1
     else:
         n = 1
-    serial = f"{today}{n:02d}"
+    candidate = int(f"{today}{n:02d}")
+    if current is not None and candidate <= current:
+        candidate = current + 1
+    serial = str(candidate)
     kv_set(key, serial)
     return serial
 
@@ -221,10 +255,10 @@ def _apply(zone: str, records: list[dict], user: dict, note: str) -> dict:
             if rc != 0:
                 raise ssh_client.SshCommandError("Não foi possível ler o arquivo de zona atual.")
             before, _, after = split_managed_block(current_text)
-            serial = _next_serial(zone)
+            serial = _next_serial(zone, int(_find_serial(before).group(2)))
             body = "\n".join(render_record_line(r) for r in records)
+            before = _bump_serial(before, serial)
             new_text = before + body + after
-            new_text = new_text.replace(SERIAL_PLACEHOLDER, serial, 1) if SERIAL_PLACEHOLDER in new_text else new_text
 
             tmp_path = f"/tmp/console-dns-{zone}-{serial}.zone"
             sftp = client.open_sftp()

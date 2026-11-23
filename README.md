@@ -153,7 +153,7 @@ Se o chroot do `ftpuser` não faz `/arquivos` apontar para essa pasta, ajuste `C
 ```
 $TTL 3600
 @       IN  SOA   ns.empresa.test. admin.empresa.test. (
-                  __SERIAL__ ; serial (o console substitui a cada publicação)
+                  2026112301 ; serial (AAAAMMDDnn; o console incrementa a cada publicação)
                   3600       ; refresh
                   900        ; retry
                   604800     ; expire
@@ -167,12 +167,21 @@ mail    IN  A     192.168.100.10
 ; ===== CONSOLE:FIM =====
 ```
 
+> O serial precisa ser **um número** já na criação do arquivo — o BIND recusa a zona inteira se
+> houver texto ali (`not a valid number`). Depois disso o console localiza a linha `; serial` e
+> sempre grava um valor maior que o atual.
+
 E a zona reversa `/etc/bind/db.192.168.100` (mesmos marcadores, registros `PTR`):
 
 ```
 $TTL 3600
-@   IN  SOA ns.empresa.test. admin.empresa.test. ( __SERIAL__ 3600 900 604800 3600 )
-    IN  NS  ns.empresa.test.
+@       IN  SOA   ns.empresa.test. admin.empresa.test. (
+                  2026112301 ; serial
+                  3600       ; refresh
+                  900        ; retry
+                  604800     ; expire
+                  3600 )     ; minimum
+        IN  NS    ns.empresa.test.
 ; ===== CONSOLE:INICIO (gerado pelo console, nao editar a mao) =====
 10  IN  PTR ns.empresa.test.
 ; ===== CONSOLE:FIM =====

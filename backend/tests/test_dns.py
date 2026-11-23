@@ -68,7 +68,7 @@ def test_duplicate_and_cname_conflict():
 # --------------------------------------------------------- zona (texto)
 ZONE_TEXT = """$TTL 3600
 @   IN  SOA ns.empresa.test. admin.empresa.test. (
-        __SERIAL__ ; serial
+        2026112301 ; serial
         3600 ; refresh
         900  ; retry
         604800 ; expire
@@ -127,6 +127,43 @@ def test_next_serial_increments_same_day(tmpdb, monkeypatch):
     s1 = dc._next_serial("fwd")
     s2 = dc._next_serial("fwd")
     assert s1 == "2026112301" and s2 == "2026112302"
+
+
+def test_next_serial_is_always_greater_than_file(tmpdb, monkeypatch):
+    # Serial escrito à mão hoje (2026112301): a 1ª publicação do console não
+    # pode repetir o mesmo número.
+    import app.dns_client as dc_mod
+    from datetime import datetime, timezone
+
+    class FakeDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 23, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(dc_mod, "datetime", FakeDatetime)
+    assert dc._next_serial("fwd", 2026112301) == "2026112302"
+    assert dc._next_serial("fwd", 2030010105) == "2030010106"
+
+
+def test_bump_serial_multiline_and_inline():
+    assert "2026112399 ; serial" in dc._bump_serial(ZONE_TEXT, "2026112399")
+    inline = "@ IN SOA ns.empresa.test. admin.empresa.test. ( 2026112301 3600 900 604800 3600 )\n"
+    assert "( 2026112399 3600" in dc._bump_serial(inline, "2026112399")
+
+
+def test_bump_serial_rejects_placeholder_text():
+    # O BIND recusa texto no lugar do serial; o console também não deve aceitar.
+    with pytest.raises(dc.DnsConfigError):
+        dc._bump_serial("@ IN SOA ns. admin. (\n  __SERIAL__ ; serial\n", "2026112301")
+
+
+def test_serial_keeps_increasing_across_publications(tmpdb, monkeypatch):
+    # Regressão: antes, só a 1ª publicação trocava o serial.
+    text = ZONE_TEXT
+    for _ in range(3):
+        current = int(dc._find_serial(text).group(2))
+        text = dc._bump_serial(text, dc._next_serial("fwd", current))
+        assert int(dc._find_serial(text).group(2)) > current
 
 
 class FakeSftpFile:
