@@ -8,6 +8,9 @@ import Files from "./pages/Files.jsx";
 import Email from "./pages/Email.jsx";
 import Ssh from "./pages/Ssh.jsx";
 import Logs from "./pages/Logs.jsx";
+import Dns from "./pages/Dns.jsx";
+import Dhcp from "./pages/Dhcp.jsx";
+import Audit from "./pages/Audit.jsx";
 
 export const TABS = [
   { path: "/visao-geral", label: "Visão Geral", element: <Dashboard /> },
@@ -15,7 +18,10 @@ export const TABS = [
   { path: "/arquivos", label: "Arquivos", element: <Files /> },
   { path: "/email", label: "E-mail", element: <Email /> },
   { path: "/ssh", label: "SSH", element: <Ssh /> },
+  { path: "/dns", label: "DNS", element: <Dns /> },
+  { path: "/dhcp", label: "DHCP", element: <Dhcp /> },
   { path: "/logs", label: "Logs", element: <Logs /> },
+  { path: "/auditoria", label: "Auditoria", element: <Audit /> },
 ];
 
 function Layout() {

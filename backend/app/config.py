@@ -89,3 +89,21 @@ LOG_LINES = (20, 50, 100)
 
 def ssh_key_passphrase() -> str | None:
     return os.environ.get("CONSOLE_SSH_KEY_PASSPHRASE") or None
+
+
+# ---------- DNS - BIND 9 (incremento 1) ----------
+DNS_ZONE_FWD_PATH = os.environ.get("CONSOLE_DNS_ZONE_FWD_PATH", "/etc/bind/db.empresa.test")
+DNS_ZONE_REV_PATH = os.environ.get("CONSOLE_DNS_ZONE_REV_PATH", "/etc/bind/db.192.168.100")
+DNS_ZONE_FWD_NAME = os.environ.get("CONSOLE_DNS_ZONE_FWD_NAME", "empresa.test")
+DNS_ZONE_REV_NAME = os.environ.get("CONSOLE_DNS_ZONE_REV_NAME", "100.168.192.in-addr.arpa")
+DNS_QUERY_TIMEOUT = _int("CONSOLE_DNS_QUERY_TIMEOUT", 5)
+
+# ---------- DHCP - Kea (incremento 2) ----------
+# Kea expõe um Control Agent HTTP local (kea-ctrl-agent) por padrão em 127.0.0.1:8000;
+# o backend fala com ele só pelo túnel SSH (nunca expõe essa porta na rede).
+KEA_CTRL_SOCKET = os.environ.get("CONSOLE_KEA_CTRL_SOCKET", "/run/kea/kea-dhcp4-ctrl.sock")
+KEA_CONFIG_PATH = os.environ.get("CONSOLE_KEA_CONFIG_PATH", "/etc/kea/kea-dhcp4.conf")
+KEA_LEASE_CSV = os.environ.get("CONSOLE_KEA_LEASE_CSV", "/var/lib/kea/kea-leases4.csv")
+KEA_SYSTEMD_UNIT = os.environ.get("CONSOLE_KEA_SYSTEMD_UNIT", "kea-dhcp4-server")
+DHCP_SUBNET = os.environ.get("CONSOLE_DHCP_SUBNET", "192.168.100.0/24")
+DHCP_RESERVED_INFRA = ("192.168.100.10", "192.168.100.20")  # Debian e Ubuntu: nunca reservar/alocar

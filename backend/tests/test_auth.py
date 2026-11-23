@@ -70,7 +70,18 @@ def test_logout_invalidates_session(client):
 # ---- Critério de aceitação do CP1 ----
 @pytest.mark.parametrize(
     "path",
-    ["/api/files/upload", "/api/email/send", "/api/ssh/hostname/change", "/api/ssh/hostname/restore"],
+    [
+        "/api/files/upload",
+        "/api/email/send",
+        "/api/ssh/hostname/change",
+        "/api/ssh/hostname/restore",
+        "/api/dns/record",
+        "/api/dns/record/delete",
+        "/api/dns/fwd/restore",
+        "/api/dhcp/reservation",
+        "/api/dhcp/reservation/delete",
+        "/api/dhcp/restore",
+    ],
 )
 def test_leitor_write_routes_return_403(client, path):
     login(client, "lia")
@@ -90,8 +101,14 @@ def test_leitor_can_read(client):
         "/api/email/messages?account=aluno@empresa.test",
         "/api/ssh/info",
         "/api/logs?service=ssh&lines=20",
+        "/api/dns/fwd",
+        "/api/dns/rev",
+        "/api/dns/query/run?name=site.empresa.test&type=A",
+        "/api/dhcp/config",
+        "/api/dhcp/leases",
     ):
         assert client.get(path).status_code not in (401, 403), path
+    assert client.get("/api/audit").status_code == 403  # leitor não consulta auditoria
 
 
 def test_operador_permissions(client):
@@ -100,11 +117,18 @@ def test_operador_permissions(client):
     # autorizado: sem arquivo no corpo a resposta é 422 (validação), nunca 401/403
     assert client.post("/api/files/upload", headers=H).status_code not in (401, 403)
     assert client.post("/api/ssh/hostname/change", headers=H).status_code == 403  # só admin
+    # DNS/DHCP: "alterar configurações de serviços" é exclusivo do admin (seção 7)
+    assert client.post("/api/dns/record", headers=H).status_code == 403
+    assert client.post("/api/dhcp/reservation", headers=H).status_code == 403
+    assert client.get("/api/audit").status_code == 200  # operador vê só as próprias ações
 
 
 def test_admin_permissions(client):
     login(client, "ana")
     assert client.post("/api/ssh/hostname/change", headers=H).status_code not in (401, 403)
+    assert client.post("/api/dns/record", headers=H).status_code not in (401, 403)
+    assert client.post("/api/dhcp/reservation", headers=H).status_code not in (401, 403)
+    assert client.get("/api/audit").status_code == 200  # admin vê tudo
 
 
 def test_csrf_header_required_on_post(client):

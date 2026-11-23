@@ -103,3 +103,10 @@ table.clickable tbody tr:hover, table.clickable tbody tr.sel { background: #eff4
 .pill.op-run { background: #eff4ff; color: #175cd3; }
 .pill.op-done { background: #dcfae6; color: #067647; }
 .pill.op-fail { background: #fee4e2; color: #b42318; }
+
+/* ---------- Parte 2: DNS, DHCP, auditoria ---------- */
+.row-form { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; margin-top: .75rem; }
+.row-form label { min-width: 140px; }
+.row-form button { height: 38px; }
+.plain-list { margin: .5rem 0 0; padding-left: 1.1rem; }
+button.small, button.secondary.small { padding: .3rem .6rem; font-size: .8rem; }

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from .. import config
+from .. import audit, config
 from ..db import get_db
 from ..deps import current_user
 from ..security import create_session, delete_session, verify_password
@@ -27,9 +27,17 @@ def login(body: LoginBody, request: Request, response: Response):
 
     if not verify_password(user["password_hash"] if user else None, body.password):
         # Mensagem genérica: não revela se o usuário existe
+        audit.record(
+            user={"username": body.username, "role": "-"},
+            resource="auth",
+            action="login",
+            result="negado",
+            detail="credenciais inválidas",
+        )
         raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
 
     token = create_session(user["id"])
+    audit.record(user=dict(user), resource="auth", action="login", result="ok")
     response.set_cookie(
         config.COOKIE_NAME,
         token,
@@ -43,9 +51,10 @@ def login(body: LoginBody, request: Request, response: Response):
 
 
 @router.post("/logout")
-def logout(request: Request, response: Response, _user: dict = Depends(current_user)):
+def logout(request: Request, response: Response, user: dict = Depends(current_user)):
     delete_session(request.cookies.get(config.COOKIE_NAME))
     response.delete_cookie(config.COOKIE_NAME, path="/")
+    audit.record(user=user, resource="auth", action="logout", result="ok")
     return {"ok": True}
 
 

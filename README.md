@@ -16,6 +16,11 @@ empacotado localmente (veja "Instalação offline").
 | CP5 | SSH (identificação, alterar/restaurar hostname) | ✅ |
 | CP6 | Logs técnicos, notificações, operações da sessão | ✅ |
 | CP7 | Mockup, diagrama, ficha de verificação | ✅ em `docs/` |
+| Incr. 1 | DNS interno (BIND 9): registros, consulta, restauração | ✅ |
+| Incr. 2 | DHCP (Kea): reservas, concessões, restauração | ✅ |
+| Incr. 3 | Laboratório virtual sob demanda (VirtualBox) | 🔜 ver `docs/plano-extensoes.md` |
+| Incr. 4 | Serviço de rede exclusivo | 🔜 ver `docs/plano-extensoes.md` |
+| Parte 2 | Auditoria persistente | ✅ (`audit.py`, aba Auditoria) |
 
 > "✅" significa que o código existe e a lógica foi coberta por testes automatizados com
 > servidores simulados. **A validação contra os serviços reais do Debian é feita por você**, um
@@ -35,20 +40,24 @@ console_n2/
 │   │   ├── ftp_client.py      # CP3: ftplib
 │   │   ├── mail_client.py     # CP4: smtplib/imaplib
 │   │   ├── ssh_client.py      # CP5/CP6: paramiko
-│   │   └── routers/           # auth, dashboard, files, mail, ssh, logs
-│   ├── tests/                 # test_auth, test_collectors, test_modules
+│   │   ├── dns_client.py      # Incremento 1: zona BIND 9 via SSH
+│   │   ├── dhcp_client.py     # Incremento 2: kea-dhcp4.conf + leases via SSH
+│   │   ├── audit.py           # Parte 2 (7.3): auditoria persistente + versionamento de config
+│   │   └── routers/           # auth, dashboard, files, mail, ssh, logs, dns, dhcp, audit
+│   ├── tests/                 # test_auth, test_collectors, test_modules, test_dns, test_dhcp
 │   ├── create_user.py         # cria/atualiza usuários
 │   ├── .env.example           # modelo de configuração (sem segredos)
 │   └── requirements.txt
-├── frontend/                  # React + Vite
+├── frontend/                  # React + Vite (abas: ..., DNS, DHCP, Auditoria)
 ├── scripts/registrar_host_key.sh
-└── docs/                      # mockup/, arquitetura.md/.png/.mmd, ficha_verificacao.md
+└── docs/                      # mockup/, arquitetura.md/.png/.mmd, ficha_verificacao.md, plano-extensoes.md
 ```
 
 ## Pré-requisitos no Debian
 
 Python 3.11+ com `python3-venv`, e os serviços já funcionando: Apache (`site.empresa.test`),
-vsftpd (passivo 30000-30010), Postfix (:25, sem autenticação), Dovecot (:143), OpenSSH.
+vsftpd (passivo 30000-30010), Postfix (:25, sem autenticação), Dovecot (:143), OpenSSH, e para a
+Parte 2: `bind9` (`apt install bind9 bind9-utils`) e `kea-dhcp4-server` (`apt install kea-dhcp4-server`).
 Para compilar o frontend: Node 18+ e npm (pode ser outra máquina).
 
 ## Instalação
@@ -138,6 +147,89 @@ Se o chroot do `ftpuser` não faz `/arquivos` apontar para essa pasta, ajuste `C
 
 **IMAP:** se o login falhar, confira no Dovecot `disable_plaintext_auth = no` (rede interna, sem TLS).
 
+**DNS (incremento 1)** — o console só gerencia um *bloco* dentro do arquivo de zona; o cabeçalho
+(TTL/SOA/NS) é escrito uma única vez, à mão. Crie `/etc/bind/db.empresa.test`:
+
+```
+$TTL 3600
+@       IN  SOA   ns.empresa.test. admin.empresa.test. (
+                  __SERIAL__ ; serial (o console substitui a cada publicação)
+                  3600       ; refresh
+                  900        ; retry
+                  604800     ; expire
+                  3600 )     ; minimum
+        IN  NS    ns.empresa.test.
+ns      IN  A     192.168.100.10
+; ===== CONSOLE:INICIO (gerado pelo console, nao editar a mao) =====
+site    IN  A     192.168.100.10
+mail    IN  A     192.168.100.10
+@       IN  MX  10 mail.empresa.test.
+; ===== CONSOLE:FIM =====
+```
+
+E a zona reversa `/etc/bind/db.192.168.100` (mesmos marcadores, registros `PTR`):
+
+```
+$TTL 3600
+@   IN  SOA ns.empresa.test. admin.empresa.test. ( __SERIAL__ 3600 900 604800 3600 )
+    IN  NS  ns.empresa.test.
+; ===== CONSOLE:INICIO (gerado pelo console, nao editar a mao) =====
+10  IN  PTR ns.empresa.test.
+; ===== CONSOLE:FIM =====
+```
+
+Registre as duas zonas em `/etc/named.conf.local` (ou `named.conf.default-zones`) e restrinja a
+recursão à rede do laboratório em `named.conf.options` (`allow-recursion { 192.168.100.0/24; };` —
+nunca um resolvedor aberto). Permissões para o console (sem sudo irrestrito):
+
+```bash
+sudo visudo -f /etc/sudoers.d/console-dns
+# conteúdo:
+yuri ALL=(root) NOPASSWD: /usr/bin/cat /etc/bind/db.empresa.test, \
+  /usr/bin/cat /etc/bind/db.192.168.100, \
+  /usr/bin/cp /tmp/console-dns-*.zone /etc/bind/db.empresa.test, \
+  /usr/bin/cp /tmp/console-dns-*.zone /etc/bind/db.192.168.100, \
+  /usr/sbin/rndc reload empresa.test, /usr/sbin/rndc reload 100.168.192.in-addr.arpa
+```
+
+Confirme com `sudo named-checkconf && sudo systemctl restart bind9`.
+
+**DHCP (incremento 2)** — o console reescreve `/etc/kea/kea-dhcp4.conf` inteiro a cada alteração de
+reserva (sempre validado com `kea-dhcp4 -t` antes de aplicar). Esqueleto mínimo:
+
+```json
+{
+  "Dhcp4": {
+    "interfaces-config": { "interfaces": ["enp0s8"] },
+    "lease-database": { "type": "memfile", "persist": true, "name": "/var/lib/kea/kea-leases4.csv" },
+    "valid-lifetime": 3600,
+    "subnet4": [
+      {
+        "subnet": "192.168.100.0/24",
+        "pools": [{ "pool": "192.168.100.100 - 192.168.100.150" }],
+        "option-data": [{ "name": "domain-name-servers", "data": "192.168.100.10" }],
+        "reservations": []
+      }
+    ]
+  }
+}
+```
+
+Use a interface **interna** do laboratório (nunca a NAT) e confirme que nenhum outro DHCP responde
+nesse segmento (nem o do hipervisor). Permissões:
+
+```bash
+sudo visudo -f /etc/sudoers.d/console-dhcp
+# conteúdo:
+yuri ALL=(root) NOPASSWD: /usr/bin/cat /etc/kea/kea-dhcp4.conf, \
+  /usr/bin/cp /tmp/console-dhcp-*.json /etc/kea/kea-dhcp4.conf, \
+  /usr/bin/cat /var/lib/kea/kea-leases4.csv, \
+  /usr/bin/systemctl reload-or-restart kea-dhcp4-server
+```
+
+Confira o nome real da unidade com `systemctl list-unit-files '*kea*'` e ajuste
+`CONSOLE_KEA_SYSTEMD_UNIT` se for diferente.
+
 ### 5. Usuários do console
 
 ```bash
@@ -165,6 +257,12 @@ Em desenvolvimento: `uvicorn app.main:app --reload` e, em outro terminal, `npm r
 | Listar/baixar arquivos; listar/ler e-mails | ✅ | ✅ | ✅ |
 | Upload de arquivo; enviar e-mail | 403 | ✅ | ✅ |
 | Alterar/restaurar hostname | 403 | 403 | ✅ |
+| Consultar DNS/DHCP (zona, reservas, concessões) | ✅ | ✅ | ✅ |
+| Criar/remover/restaurar registro DNS ou reserva DHCP | 403 | 403 | ✅ |
+| Consultar auditoria | 403 | próprias ações | tudo |
+
+A linha "Criar/remover/restaurar registro DNS ou reserva DHCP" é admin-only porque a seção 7 do
+enunciado classifica isso como "alterar configurações de serviços" — mesma categoria do hostname.
 
 A autorização é feita **no backend** em cada rota (`require_role`); esconder botões no React é
 só conveniência. Um leitor que digita a URL de uma rota de escrita recebe **403**.
@@ -205,6 +303,27 @@ checkpoint tem um critério de aceitação e o que precisa estar configurado.
 **CP7 — entregáveis:** `docs/mockup/index.html` (abra no navegador), `docs/arquitetura.md`,
 `docs/ficha_verificacao.md` (preencher) e este README.
 
+**Incremento 1 — DNS** *(zona preparada, sudoers DNS, `/etc/hosts` do Ubuntu limpo de entradas de teste)*
+1. Como `admin1`, crie um registro A (ex.: `ftp` → `192.168.100.10`) e confirme: `dig @192.168.100.10
+   ftp.empresa.test A +noall +answer` no Ubuntu mostra o endereço aplicado.
+2. Consulte um nome inexistente pela aba DNS: status deve ser `NXDOMAIN`.
+3. Remova o registro criado e confira que a consulta volta a falhar; clique em "Restaurar versão
+   anterior" depois de uma edição e confirme que o estado anterior volta.
+4. Como `oper1`, tente criar um registro pela aba: deve aparecer 403.
+
+**Incremento 2 — DHCP** *(Kea configurado, sudoers DHCP, nenhum outro DHCP no segmento)*
+1. No Ubuntu, renove o IP (`sudo dhclient -r && sudo dhclient enp0s3` ou equivalente do seu
+   gerenciador de rede) e confira que o endereço aparece em Concessões.
+2. Como `admin1`, crie uma reserva para o MAC do Ubuntu e renove de novo: o IP reservado deve ser
+   o entregue (compare com `ip -br addr` no Ubuntu).
+3. Tente reservar `192.168.100.10` (IP do Debian): deve ser recusado (400).
+4. Restaure a configuração anterior e confirme que a reserva desaparece.
+
+**Auditoria** *(nada extra a configurar)*
+1. Faça login/logout e uma alteração de DNS ou DHCP; a aba Auditoria deve mostrar os eventos na
+   hora, com usuário, ação, resultado e um identificador de correlação.
+2. Como `oper1`, confirme que só aparecem as próprias ações; como `lia`, que a aba retorna 403.
+
 ## Testes automatizados
 
 ```bash
@@ -227,6 +346,13 @@ usando servidores simulados (não tocam nos serviços reais).
   por lista de argumentos, hostname validado por `^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$`.
 - E-mail: contas e pastas por lista fixa; assunto sem quebra de linha (anti-injeção de cabeçalhos).
 - Mensagens de erro nunca incluem senhas, caminhos de chave ou saídas internas dos serviços.
+- DNS/DHCP: o texto da zona/configuração nunca entra num argumento de shell — é gravado via SFTP e
+  só então validado (`named-checkzone` / `kea-dhcp4 -t`) antes de substituir o arquivo real; o
+  nome/tipo/valor de cada registro é validado por regex, e IPs de infraestrutura (Debian/Ubuntu)
+  nunca podem virar reserva DHCP. Cada alteração guarda a versão anterior (`config_versions`) para
+  permitir restauração.
+- Auditoria: tabela `audit_log` só recebe INSERT (sem rota de update/delete), e nunca grava senha,
+  token, chave ou corpo de mensagem — só usuário, perfil, recurso, ação, resultado e um detalhe curto.
 
 ## Solução de problemas
 
@@ -241,8 +367,14 @@ usando servidores simulados (não tocam nos serviços reais).
 | SSH: "host key não confere" | `known_hosts` desatualizado: rode `scripts/registrar_host_key.sh` |
 | SSH: "recusou a alteração do hostname" | Regra do sudoers ausente ou diferente |
 | Logs: "permissão ou arquivo ausente" | `yuri` fora dos grupos `adm`/`systemd-journal` (e novo login) |
+| DNS: "zona não tem os marcadores do console" | Arquivo de zona não tem os comentários `CONSOLE:INICIO`/`CONSOLE:FIM` (veja a seção DNS acima) |
+| DNS: "named-checkzone recusou a zona" | Registro inválido (confira nome/valor) ou SOA/NS corrompidos no cabeçalho |
+| DHCP: "kea-dhcp4 -t recusou a configuração" | Reserva com MAC/IP inválido, ou JSON corrompido no arquivo base |
+| DHCP: "Kea não recarregou (systemctl)" | Nome da unidade diferente: confira com `systemctl list-unit-files '*kea*'` e ajuste `CONSOLE_KEA_SYSTEMD_UNIT` |
 
-## Parte 2 (fora desta entrega)
+## Parte 2 — entrega final (N2)
 
-Auditoria persistente, controles de iniciar/parar serviços e edição de configurações — marcados
-com **PARTE 2** no mockup.
+DNS, DHCP e auditoria persistente já estão implementados (ver tabela no topo). Faltam os dois
+incrementos mais pesados — **laboratório virtual sob demanda** (seção 8.3) e o **serviço de rede
+exclusivo** (seção 8.4) — cujo plano, decisões de arquitetura e sugestão de serviço estão em
+`docs/plano-extensoes.md`.

@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 
 from . import config
 from .db import init_db
-from .routers import auth, dashboard, files, logs, mail, ssh
+from .routers import audit, auth, dashboard, dhcp, dns, files, logs, mail, ssh
 
 
 @asynccontextmanager
@@ -22,6 +22,9 @@ app.include_router(files.router)
 app.include_router(mail.router)
 app.include_router(ssh.router)
 app.include_router(logs.router)
+app.include_router(dns.router)
+app.include_router(dhcp.router)
+app.include_router(audit.router)
 
 
 @app.get("/api/health")
