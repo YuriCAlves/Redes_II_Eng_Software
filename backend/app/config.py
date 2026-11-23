@@ -114,4 +114,8 @@ STAGE_DIR = os.environ.get("CONSOLE_STAGE_DIR", "/var/lib/console-n2")
 # Caminhos absolutos: o PATH de uma sessão SSH sem login no Debian não inclui /usr/sbin.
 NAMED_CHECKZONE_BIN = os.environ.get("CONSOLE_NAMED_CHECKZONE_BIN", "/usr/bin/named-checkzone")
 KEA_DHCP4_BIN = os.environ.get("CONSOLE_KEA_DHCP4_BIN", "/usr/sbin/kea-dhcp4")
+# Validação do Kea: roda como o usuário do serviço sobre uma cópia dentro de /etc/kea
+# (único caminho de configuração que o perfil AppArmor do kea-dhcp4 permite ler).
+KEA_USER = os.environ.get("CONSOLE_KEA_USER", "_kea")
+KEA_CANDIDATE_PATH = os.environ.get("CONSOLE_KEA_CANDIDATE_PATH", "/etc/kea/kea-dhcp4.candidate.json")
 DHCP_RESERVED_INFRA = ("192.168.100.10", "192.168.100.20")  # Debian e Ubuntu: nunca reservar/alocar

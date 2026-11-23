@@ -202,8 +202,12 @@ reserva (sempre validado com `kea-dhcp4 -t` antes de aplicar). O esqueleto pront
 ```bash
 ip -br addr                                   # anote a interface 192.168.100.x
 sed 's/enp0s8/SUA_INTERFACE/' deploy/kea/kea-dhcp4.conf | sudo tee /etc/kea/kea-dhcp4.conf >/dev/null
-sudo kea-dhcp4 -t /etc/kea/kea-dhcp4.conf
+sudo -u _kea kea-dhcp4 -t /etc/kea/kea-dhcp4.conf   # como _kea: veja a nota abaixo
 ```
+
+> `sudo kea-dhcp4 -t` (como root) falha com `Unable to open file`: o perfil AppArmor do
+> `kea-dhcp4` não dá ao root o poder de ignorar permissões, e `/etc/kea` é `750 _kea:_kea`.
+> Por isso o console também valida como `_kea`, numa cópia `kea-dhcp4.candidate.json` em `/etc/kea`.
 
 Conteúdo:
 
@@ -387,6 +391,7 @@ usando servidores simulados (não tocam nos serviços reais).
 | DNS: "zona não tem os marcadores do console" | Arquivo de zona não tem os comentários `CONSOLE:INICIO`/`CONSOLE:FIM` (veja a seção DNS acima) |
 | DNS: "named-checkzone recusou a zona" | Registro inválido (confira nome/valor) ou SOA/NS corrompidos no cabeçalho |
 | DHCP: "kea-dhcp4 -t recusou a configuração" | Reserva com MAC/IP inválido, ou JSON corrompido no arquivo base |
+| `kea-dhcp4 -t`: "Unable to open file" com o arquivo existindo | AppArmor: rode como `sudo -u _kea kea-dhcp4 -t ...` |
 | DHCP: "Kea não recarregou (systemctl)" | Nome da unidade diferente: confira com `systemctl list-unit-files '*kea*'` e ajuste `CONSOLE_KEA_SYSTEMD_UNIT` |
 
 ## Parte 2 — entrega final (N2)

@@ -14,7 +14,14 @@ Cmnd_Alias CONSOLE_DNS = \
 Cmnd_Alias CONSOLE_DHCP = \
     /usr/bin/cat /etc/kea/kea-dhcp4.conf, \
     /usr/bin/cat /var/lib/kea/kea-leases4.csv, \
+    /usr/bin/cp /var/lib/console-n2/kea-dhcp4.json /etc/kea/kea-dhcp4.candidate.json, \
     /usr/bin/cp /var/lib/console-n2/kea-dhcp4.json /etc/kea/kea-dhcp4.conf, \
     /usr/bin/systemctl reload-or-restart kea-dhcp4-server
 
+# Validação do Kea como o usuário do serviço: o AppArmor do kea-dhcp4 só lê /etc/kea/**
+# e /etc/kea é 750 _kea:_kea (nem o root confinado consegue abrir a pasta).
+Cmnd_Alias CONSOLE_DHCP_TEST = \
+    /usr/sbin/kea-dhcp4 -t /etc/kea/kea-dhcp4.candidate.json
+
 yuri ALL=(root) NOPASSWD: CONSOLE_DNS, CONSOLE_DHCP
+yuri ALL=(_kea) NOPASSWD: CONSOLE_DHCP_TEST

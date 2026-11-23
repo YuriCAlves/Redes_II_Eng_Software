@@ -129,9 +129,11 @@ class FakeDhcpSsh:
         self.commands.append(argv)
         if argv[:3] == ["sudo", "-n", "/usr/bin/cat"] and argv[3] == config.KEA_CONFIG_PATH:
             return 0, self.config_text, ""
-        if argv[0] == config.KEA_DHCP4_BIN and argv[1] == "-t":
+        if argv[:5] == ["sudo", "-n", "-u", config.KEA_USER, config.KEA_DHCP4_BIN] and argv[5] == "-t":
             return (0, "configuration seems sane", "") if self.checktest_ok else (1, "", "erro de sintaxe")
         if argv[:3] == ["sudo", "-n", "/usr/bin/cp"]:
+            if argv[4] == config.KEA_CANDIDATE_PATH:
+                return 0, "", ""
             if self.cp_ok:
                 self.config_text = self.sftp_store[argv[3]]
             return (0, "", "") if self.cp_ok else (1, "", "sudoers")
@@ -200,4 +202,4 @@ def test_every_sudo_command_matches_sudoers_file(tmpdb, monkeypatch):
     allowed = allowed_commands()
     issued = sudo_commands(ssh.commands)
     assert issued and all(c in allowed for c in issued), set(issued) - allowed
-    assert f"/usr/bin/cat {config.KEA_LEASE_CSV}" in allowed
+    assert f"root /usr/bin/cat {config.KEA_LEASE_CSV}" in allowed

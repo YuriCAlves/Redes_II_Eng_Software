@@ -279,5 +279,5 @@ def test_every_sudo_command_matches_sudoers_file(tmpdb, monkeypatch):
     issued = sudo_commands(ssh.commands)
     assert issued and all(c in allowed for c in issued), set(issued) - allowed
     # a zona reversa usa o mesmo fluxo, com os próprios caminhos fixos
-    assert f"/usr/bin/cp {dc._stage_path('rev')} {config.DNS_ZONE_REV_PATH}" in allowed
-    assert f"/usr/sbin/rndc reload {config.DNS_ZONE_REV_NAME}" in allowed
+    assert f"root /usr/bin/cp {dc._stage_path('rev')} {config.DNS_ZONE_REV_PATH}" in allowed
+    assert f"root /usr/sbin/rndc reload {config.DNS_ZONE_REV_NAME}" in allowed

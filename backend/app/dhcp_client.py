@@ -148,7 +148,20 @@ def _apply(reservations: list[dict], user: dict, note: str) -> dict:
             finally:
                 sftp.close()
 
-            rc, out, err = ssh_client.run(client, [config.KEA_DHCP4_BIN, "-t", tmp_path], timeout=15)
+            # O AppArmor do Kea só o deixa ler /etc/kea/**, e /etc/kea é 750 _kea:_kea:
+            # a validação precisa rodar como _kea sobre uma cópia candidata DENTRO de /etc/kea
+            # (o kea-dhcp4 rodando como root confinado nem consegue abrir a pasta).
+            rc, _, err = ssh_client.run(
+                client, ["sudo", "-n", "/usr/bin/cp", tmp_path, config.KEA_CANDIDATE_PATH], timeout=15
+            )
+            if rc != 0:
+                ssh_client.run(client, ["rm", "-f", tmp_path])
+                raise ssh_client.SshCommandError("O Debian recusou preparar a configuração candidata (sudoers).")
+            rc, out, err = ssh_client.run(
+                client,
+                ["sudo", "-n", "-u", config.KEA_USER, config.KEA_DHCP4_BIN, "-t", config.KEA_CANDIDATE_PATH],
+                timeout=15,
+            )
             if rc != 0:
                 ssh_client.run(client, ["rm", "-f", tmp_path])
                 raise DhcpValidationError("kea-dhcp4 -t recusou a configuração (reserva inválida ou conflito).")
