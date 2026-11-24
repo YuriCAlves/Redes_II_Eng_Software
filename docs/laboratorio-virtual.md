@@ -10,7 +10,7 @@ Desktops Linux criados pelo console a partir de uma imagem-base, executando no V
 | Console/API (`backend/app/lab.py`, `routers/lab.py`) | Debian | Catálogo, perfis, cotas, reserva de capacidade, estado, autorização, auditoria |
 | Provisionador (fila em `lab.py`, `process_once`) | Debian (thread do backend) | Leva cada instância ao próximo estado; reconcilia banco e host |
 | Executor (`labagent/`) | Host Windows | Único que chama o `VBoxManage`; operações delimitadas, token + origem |
-| Imagem-base `BASE-LINUX-v1` (snapshot `v1`) | Host, desligada | Debian 12 + XFCE + Guest Additions + script de 1ª inicialização |
+| Imagem-base `BASE-LINUX-v1` (snapshot `v1`) | Host, desligada | Debian + XFCE + Guest Additions + script de 1ª inicialização |
 | Instância `LAB-<usuário>-<op>` | Host | Clone ligado (*linked clone*) da base, com MAC, hostname, chaves e senhas próprios |
 | Ubuntu | VM | Cliente: pede o desktop no navegador e acessa por RDP (Remmina) |
 
@@ -134,24 +134,29 @@ autenticação aparece como `VBoxAuthSimple`. Sem isso o agente recusa configura
 
 ### Checkpoint L4 — Imagem-base versionada
 
-1. Crie a VM **`BASE-LINUX-v1`**: Debian 12 (netinst), 1 vCPU, 2 GiB, disco dinâmico de 20 GiB,
-   placa 1 no **mesmo segmento de serviços** em que está a `enp0s8` do Debian (192.168.100.0/24).
-   Instale com usuário administrador próprio da base (não use senha pessoal).
+1. Crie a VM **`BASE-LINUX-v1`** com a mesma ISO do Debian já usada: 1 vCPU, 2 GiB, disco dinâmico
+   de 20 GiB. **Adaptador 1** no mesmo segmento de serviços da `enp0s8` do Debian
+   (192.168.100.0/24); **Adaptador 2** em NAT, só para baixar pacotes (sai antes do snapshot). No
+   instalador: interface primária `enp0s8` (a NAT), senha de root em branco (o usuário ganha `sudo`),
+   usuário `adminbase`, programas só "servidor SSH" e "utilitários padrão".
 2. Instale os **Guest Additions** (*Dispositivos → Inserir imagem de CD dos Adicionais*):
    ```bash
    sudo apt-get install -y build-essential linux-headers-$(uname -r)
-   sudo sh /media/cdrom0/VBoxLinuxAdditions.run
+   sudo mount /dev/cdrom /mnt && sudo sh /mnt/VBoxLinuxAdditions.run && sudo umount /mnt
+   sudo reboot
    ```
-3. Copie os arquivos do convidado do Debian e rode a preparação **dentro da base**:
+3. Traga os arquivos do convidado do Debian (IP temporário fora da faixa do Kea) e rode a
+   preparação **dentro da base**:
    ```bash
-   sudo apt-get install -y openssh-client
+   sudo ip addr add 192.168.100.60/24 dev enp0s3 && sudo ip link set enp0s3 up
    scp -r yuri@192.168.100.10:Documentos/Redes_II_Eng_Software/labagent/guest ~/guest
    sudo ~/guest/preparar-base.sh        # instala XFCE, cria "aluno", ativa o 1º boot e limpa segredos
    rm -rf ~/guest && sudo poweroff
    ```
 4. No Windows, congele a versão e registre o checksum:
    ```powershell
-   & $vbox snapshot "BASE-LINUX-v1" take "v1" --description "Debian 12 XFCE - catálogo v1"
+   & $vbox modifyvm "BASE-LINUX-v1" --nic2 none          # tira a NAT: clones só no segmento de serviços
+   & $vbox snapshot "BASE-LINUX-v1" take "v1" --description "Debian XFCE - catálogo v1"
    & $vbox showvminfo "BASE-LINUX-v1" | Select-String "^State|Name: v1"
    & $vbox list hdds | Select-String "BASE-LINUX-v1"      # mostra o caminho (Location) do .vdi
    Get-FileHash "<Location do .vdi da base>" -Algorithm SHA256

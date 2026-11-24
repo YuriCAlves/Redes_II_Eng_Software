@@ -1,5 +1,5 @@
 #!/bin/bash
-# Prepara a imagem-base BASE-LINUX-v1 (Debian 12). Rode como root DENTRO da VM base,
+# Prepara a imagem-base BASE-LINUX-v1 (Debian 12 ou 13). Rode como root DENTRO da VM base,
 # na pasta labagent/guest copiada para ela. Ao final, desligue a VM e tire o snapshot "v1".
 set -euo pipefail
 cd "$(dirname "$0")"
