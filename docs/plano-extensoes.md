@@ -12,7 +12,7 @@ exclusivo), com as decisões de arquitetura por trás de cada escolha.
 | 2 — DHCP (Kea) | ✅ implementado e testado | `backend/app/dhcp_client.py`, `routers/dhcp.py`, `tests/test_dhcp.py`, `frontend/src/pages/Dhcp.jsx` |
 | Auditoria persistente (7.3) | ✅ implementado | `backend/app/audit.py`, `routers/audit.py`, `frontend/src/pages/Audit.jsx` |
 | 3 — Laboratório virtual | 🔜 planejado (seção 4 deste documento) | — |
-| 4 — Serviço exclusivo | 🔜 a validar com o Prof. Matias (seção 5) | — |
+| 4 — Serviço exclusivo (RADIUS) | 🔜 escolhido; aguardando validação do Prof. Matias (seção 5) | — |
 
 ## 2. Decisões de arquitetura (ADRs)
 
@@ -64,6 +64,17 @@ físico (onde o VirtualBox realmente executa), nunca dentro do Debian virtualiza
 explícito sobre isso ("não é necessário instalar VirtualBox dentro do Debian virtualizado"). Isso
 implica um segundo processo (fora do FastAPI principal), autenticado, numa rede host-only própria.
 
+### ADR-005 — Serviço exclusivo: RADIUS (FreeRADIUS) em vez de coleta central de eventos
+
+**Contexto:** a seção 8.4 exige um serviço exclusivo por categoria, com operação real pelo console,
+efeito em cliente real e experimento de desempenho. **Alternativas:** (a) coleta central de eventos
+(rsyslog), (b) RADIUS (FreeRADIUS), (c) sincronização de tempo (chrony).
+**Escolha:** (b). **Justificativa:** cobre autenticação, autorização e contabilização — mais
+operações administrativas reais (clientes NAS, usuários, políticas, sessões) do que (a) ou (c), e
+tem efeito facilmente observável no cliente (login aceito/negado). **Consequência:** exige preparar o
+Ubuntu como NAS (`pam_radius_auth`) e cuidar de dois segredos sensíveis (segredo do NAS e senhas),
+guardados só no Debian e com senha apenas como hash.
+
 ## 3. Rastreabilidade (exemplo, formato da seção 9.1)
 
 | Requisito | Componente | Teste | Evidência |
@@ -104,31 +115,43 @@ senha para o seu usuário administrador de VMs, e qual sistema usar como imagem-
 agente e o `labvm_client.py` numa próxima etapa — me diga o nome da interface host-only já criada no
 VirtualBox e se você quer RDP (xrdp) ou VNC no convidado.
 
-## 5. Incremento 4 — serviço de rede exclusivo (a registrar com o Prof. Matias)
+## 5. Incremento 4 — serviço exclusivo: Autenticação RADIUS (opção 5)
 
-**Sugestão (a validar):** opção **7 — Coleta central de eventos** (um coletor `syslog` central).
+**Status:** escolhido pelo discente; **aguardando validação do Prof. Matias** (seção 8.4 exige a
+validação antes da implementação). Nada deste módulo foi implementado ainda.
 
-**Por quê:** é a opção que mais aproveita o que você já construiu. O console já lê logs via SSH
-(`ssh_client.read_logs`, CP6) e já tem auditoria persistente — um coletor central de syslog é uma
-extensão natural e tecnicamente distinta da auditoria do console (que é só do que ACONTECE no
-painel; o coletor recebe logs de **outras máquinas**, como pede a tabela da seção 8.4: "Diferente
-da auditoria do console"). Com `rsyslog` (já instalado no Debian) escutando UDP/TCP e o Ubuntu
-configurado para encaminhar logs, você consegue:
-- console mostrando eventos por origem, com filtro e paginação (reaproveita a UI da aba Logs);
-- retenção configurável (rotação do rsyslog);
-- hipótese de desempenho mensurável: gerar carga controlada de eventos/segundo (um script simples
-  com `logger` ou `socket` UDP) e medir taxa de perda e atraso — exatamente o tipo de "métrica,
-  comparação e limites observados" que a seção 8.5 pede para o nível avançado.
+### 5.1 Registro (formato da seção 8.4)
 
-**Alternativas também viáveis**, caso o professor já tenha outro grupo nessa categoria:
-- **5 — Autenticação RADIUS** (FreeRADIUS): também combina com o módulo de auditoria/usuários já
-  existente, mas exige mais infraestrutura de teste (um cliente 802.1X ou PPP) para gerar aceitação/
-  rejeição real.
-- **6 — Sincronização de tempo** (chrony): o mais simples de implementar e medir (desvio de
-  relógio), mas tecnicamente mais raso para o "nível avançado" da disciplina.
+| Campo | Conteúdo |
+|---|---|
+| Responsável | Yuri Carlos Alves |
+| Categoria | 5 — Autenticação RADIUS (AAA: autenticação, autorização e contabilização) |
+| Software | FreeRADIUS 3 no Debian (`freeradius`, `freeradius-utils`); no Ubuntu, `freeradius-utils` (radtest/radclient) e `libpam-radius-auth` |
+| Problema | A empresa fictícia não tem ponto único de autenticação para equipamentos e serviços de rede (NAS): cada um mantém senhas próprias, não há revogação central nem registro de quem usou o quê e por quanto tempo. |
+| Operações do console | Listar/criar/remover **clientes NAS** (IP + segredo compartilhado); listar/criar/bloquear/remover **usuários RADIUS** (senha guardada só como hash); associar usuário a **política** (grupo com `Session-Timeout` e bloqueio por horário/estado); consultar **autenticações aceitas/negadas** e **sessões contabilizadas** (início, fim, duração, bytes); validar a configuração antes de aplicar e restaurar a versão anterior. |
+| Recursos necessários | Debian `192.168.100.10` (UDP 1812/1813, sem exposição fora da rede interna); Ubuntu `192.168.100.20` como NAS e cliente real; regras de sudoers específicas (sem curinga), no mesmo padrão de DNS/DHCP. |
+| Testes | T-EXT-01: usuário criado pelo console faz login SSH no Ubuntu via `pam_radius_auth` → aceito; bloqueado pelo console → negado; sessão aparece na contabilização e na auditoria. T-EXT-02: falha controlada (segredo do NAS divergente) → pedidos descartados e diagnosticados no log → correção pelo console → reteste aceito. Desempenho: ver 5.3. |
+| Validação do professor | *(pendente — preencher com data e observações)* |
 
-**Antes de implementar:** registre a escolha com o Prof. Matias (responsável, categoria, software,
-problema, operações do console, recursos necessários, testes) — a seção 8.4 do enunciado exige essa
-validação antes do código. Assim que confirmar, eu monto o módulo (`syslog_client.py`, router,
-testes e página) seguindo o mesmo padrão de DNS/DHCP (SSH self-loopback, validação antes de aplicar,
-auditoria em cada ação).
+### 5.2 Desenho (mesmo padrão de DNS/DHCP)
+
+- `radius_client.py` + `routers/radius.py` + `pages/Radius.jsx`, SSH self-loopback e sudoers mínimo
+  (ADR-001); leitura para `leitor+`, escrita só `admin`; auditoria em toda ação.
+- Arquivos gerenciados inteiros pelo console, incluídos pela configuração do FreeRADIUS
+  (`clients.d/console.conf` e um arquivo de usuários do módulo `files`), sem tocar no resto (ADR-002).
+- Validar antes de aplicar com `freeradius -XC` sobre a candidata, versionar a anterior em
+  `config_versions` e só então reiniciar (ADR-003).
+- Contabilização lida dos arquivos `detail` de `radacct`; aceitos/negados lidos do log com
+  `auth = yes`. Segredos de NAS e hashes de senha nunca voltam para o navegador nem para a auditoria.
+
+### 5.3 Hipótese de desempenho (seção 8.5)
+
+**Hipótese:** o custo do esquema de hash de senha domina a latência de autenticação PAP sob carga:
+com `Crypt-Password` (SHA-512, 5000 rodadas) a vazão máxima cai de forma mensurável em relação a
+`SSHA2-256-Password`, enquanto o número de usuários no arquivo (100 vs. 5000) tem efeito menor.
+
+**Carga controlada:** `radclient` a partir do Ubuntu, com número de pedidos e paralelismo fixos
+(ex.: 1000 pedidos; 1, 10 e 50 em paralelo), repetido 3 vezes por cenário.
+**Métricas:** pedidos/s, latência média e p95, perdas (sem resposta), CPU do `freeradius`.
+**Comparação:** 2 esquemas de hash × 2 tamanhos de base. **Limites:** apontar o paralelismo em que
+aparecem perdas ou timeouts e o que limita (CPU da VM, fila do servidor).
