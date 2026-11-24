@@ -119,3 +119,22 @@ KEA_DHCP4_BIN = os.environ.get("CONSOLE_KEA_DHCP4_BIN", "/usr/sbin/kea-dhcp4")
 KEA_USER = os.environ.get("CONSOLE_KEA_USER", "_kea")
 KEA_CANDIDATE_PATH = os.environ.get("CONSOLE_KEA_CANDIDATE_PATH", "/etc/kea/kea-dhcp4.candidate.json")
 DHCP_RESERVED_INFRA = ("192.168.100.10", "192.168.100.20")  # Debian e Ubuntu: nunca reservar/alocar
+
+# ---------- Laboratório virtual (incremento 3) ----------
+# O agente roda no host físico (Windows) e é alcançado pela rede host-only.
+LAB_AGENT_URL = os.environ.get("CONSOLE_LAB_AGENT_URL", "")          # ex.: http://192.168.56.1:8765
+LAB_AGENT_TOKEN = os.environ.get("CONSOLE_LAB_AGENT_TOKEN", "")      # mesmo token do agent.json
+LAB_AGENT_TIMEOUT = _int("CONSOLE_LAB_AGENT_TIMEOUT", 30)
+LAB_CLONE_TIMEOUT = _int("CONSOLE_LAB_CLONE_TIMEOUT", 900)
+# Capacidade reservável (medir o host e deixar margem para host, Debian e Ubuntu).
+LAB_MAX_VCPUS = _int("CONSOLE_LAB_MAX_VCPUS", 2)
+LAB_MAX_MEMORY_MB = _int("CONSOLE_LAB_MAX_MEMORY_MB", 4096)
+LAB_MAX_INSTANCES = _int("CONSOLE_LAB_MAX_INSTANCES", 2)            # limite de disco: VMs existentes
+LAB_QUOTA = {"operador": _int("CONSOLE_LAB_QUOTA_OPERADOR", 1), "admin": _int("CONSOLE_LAB_QUOTA_ADMIN", 2)}
+LAB_VRDE_HOST = os.environ.get("CONSOLE_LAB_VRDE_HOST", "192.168.56.1")
+LAB_VRDE_PORTS = (_int("CONSOLE_LAB_VRDE_PORT_MIN", 5001), _int("CONSOLE_LAB_VRDE_PORT_MAX", 5010))
+LAB_READY_TIMEOUT = _int("CONSOLE_LAB_READY_TIMEOUT", 600)          # s até o desktop ficar pronto
+LAB_STOP_TIMEOUT = _int("CONSOLE_LAB_STOP_TIMEOUT", 90)             # s de ACPI antes de forçar
+LAB_POLL_INTERVAL = _int("CONSOLE_LAB_POLL_INTERVAL", 5)
+LAB_WORKER = os.environ.get("CONSOLE_LAB_WORKER", "1") == "1"        # desliga a fila (testes)
+LAB_CATALOG_PATH = Path(os.environ.get("CONSOLE_LAB_CATALOG", BASE_DIR / "app" / "lab_catalog.json"))

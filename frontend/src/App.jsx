@@ -11,6 +11,7 @@ import Logs from "./pages/Logs.jsx";
 import Dns from "./pages/Dns.jsx";
 import Dhcp from "./pages/Dhcp.jsx";
 import Audit from "./pages/Audit.jsx";
+import Lab from "./pages/Lab.jsx";
 
 export const TABS = [
   { path: "/visao-geral", label: "Visão Geral", element: <Dashboard /> },
@@ -20,6 +21,7 @@ export const TABS = [
   { path: "/ssh", label: "SSH", element: <Ssh /> },
   { path: "/dns", label: "DNS", element: <Dns /> },
   { path: "/dhcp", label: "DHCP", element: <Dhcp /> },
+  { path: "/laboratorio", label: "Laboratório", element: <Lab /> },
   { path: "/logs", label: "Logs", element: <Logs /> },
   { path: "/auditoria", label: "Auditoria", element: <Audit /> },
 ];

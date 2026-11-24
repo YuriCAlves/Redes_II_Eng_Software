@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn>=0.29
+psutil>=5.9        # medidas reais de CPU/RAM do host (opcional, mas recomendado)
+# apenas para testes
+pytest>=8.0
+httpx>=0.27

@@ -11,7 +11,7 @@ exclusivo), com as decisões de arquitetura por trás de cada escolha.
 | 1 — DNS (BIND 9) | ✅ implementado e testado | `backend/app/dns_client.py`, `routers/dns.py`, `tests/test_dns.py`, `frontend/src/pages/Dns.jsx` |
 | 2 — DHCP (Kea) | ✅ implementado e testado | `backend/app/dhcp_client.py`, `routers/dhcp.py`, `tests/test_dhcp.py`, `frontend/src/pages/Dhcp.jsx` |
 | Auditoria persistente (7.3) | ✅ implementado | `backend/app/audit.py`, `routers/audit.py`, `frontend/src/pages/Audit.jsx` |
-| 3 — Laboratório virtual | 🔜 planejado (seção 4 deste documento) | — |
+| 3 — Laboratório virtual | ✅ implementado e testado (com agente simulado) | `backend/app/lab.py`, `labvm_client.py`, `routers/lab.py`, `tests/test_lab.py`, `labagent/`, `frontend/src/pages/Lab.jsx`; roteiro em `docs/laboratorio-virtual.md` |
 | 4 — Serviço exclusivo (RADIUS) | 🔜 escolhido; aguardando validação do Prof. Matias (seção 5) | — |
 
 ## 2. Decisões de arquitetura (ADRs)
@@ -57,12 +57,27 @@ arquivo real → recarrega o serviço. A versão anterior (que já era válida) 
 `config_versions` **antes** da sobrescrita, nunca depois — assim uma falha no meio do caminho nunca
 deixa a tabela de versões inconsistente com o arquivo real.
 
-### ADR-004 — Laboratório virtual via um agente separado no host físico (não dentro das VMs)
+### ADR-004 — Laboratório virtual: agente HTTP próprio no host físico (Windows), separado do console
 
-Ver detalhamento na seção 4. Resumo: o agente que fala com `VBoxManage` **tem que** rodar no host
-físico (onde o VirtualBox realmente executa), nunca dentro do Debian virtualizado — o enunciado é
-explícito sobre isso ("não é necessário instalar VirtualBox dentro do Debian virtualizado"). Isso
-implica um segundo processo (fora do FastAPI principal), autenticado, numa rede host-only própria.
+**Contexto:** o VirtualBox roda no host físico (Windows); o console, no Debian virtualizado. A
+seção 8.3 exige agente no host, solicitações autenticadas, nenhum comando livre e separação entre
+console, provisionador e executor.
+
+**Alternativas:** (a) backend chamando `VBoxManage` por SSH no Windows; (b) API web do VirtualBox
+(`vboxwebsrv`/SOAP); (c) agente próprio em FastAPI com operações fixas.
+
+**Escolha:** (c). **Justificativa:** (a) exigiria um servidor SSH no Windows e transformaria cada
+operação em linha de comando remota; (b) expõe a API inteira do VirtualBox, inclusive operações
+sobre a base e as VMs do Debian/Ubuntu. O agente próprio expõe só inventariar, clonar, configurar,
+iniciar, consultar, desligar e excluir; valida UUID, nome, perfil, porta e imagem; chama o
+`VBoxManage` com argumentos separados e timeout; aceita só o token e a origem do Debian; e recusa
+VMs sem a marca `ConsoleN2/Managed` ou de outra operação. **Consequências:** mais um processo para
+instalar no host (roteiro L5) e um token a proteger; o estado continua no VirtualBox (marcas em
+`extradata`), então o agente é sem estado e pode reiniciar a qualquer momento.
+
+**Provisionador:** fila persistente no próprio banco do console (uma thread no backend percorre as
+instâncias em estado não final). Escolhida no lugar de Celery/Redis por não exigir serviços novos
+no Debian; a reconciliação a cada volta substitui a "retomada de tarefa" de uma fila externa.
 
 ### ADR-005 — Serviço exclusivo: RADIUS (FreeRADIUS) em vez de coleta central de eventos
 
@@ -75,6 +90,20 @@ tem efeito facilmente observável no cliente (login aceito/negado). **Consequên
 Ubuntu como NAS (`pam_radius_auth`) e cuidar de dois segredos sensíveis (segredo do NAS e senhas),
 guardados só no Debian e com senha apenas como hash.
 
+### ADR-006 — Acesso ao desktop pelo VRDE do VirtualBox com senha por instância
+
+**Contexto:** o desktop precisa de acesso remoto pelo Ubuntu (RDP/VNC) e a prontidão deve ser
+verificável. **Alternativas:** (a) xrdp dentro do convidado; (b) VNC no convidado; (c) VRDE do
+VirtualBox (RDP servido pelo hipervisor) com `VBoxAuthSimple`.
+
+**Escolha:** (c). **Justificativa:** não depende da rede do convidado para o acesso (o RDP é do
+host), não exige servidor gráfico remoto na imagem e permite porta e senha próprias por instância
+(o Debian envia só o SHA-256 da senha). A prontidão combina o hipervisor (`running` + porta RDP
+respondendo) com um sinal do convidado (`/ConsoleN2/Ready`, gravado pelo script de 1ª inicialização
+depois da personalização). **Consequências:** exige o Oracle Extension Pack (licença PUEL, uso
+educacional) e a biblioteca `VBoxAuthSimple` como padrão do VirtualBox; o acesso é RDP sem TLS,
+restrito à rede host-only e à origem do Ubuntu pelo firewall do Windows.
+
 ## 3. Rastreabilidade (exemplo, formato da seção 9.1)
 
 | Requisito | Componente | Teste | Evidência |
@@ -83,37 +112,20 @@ guardados só no Debian e com senha apenas como hash.
 | RF-DNS-02 — recusar registro inválido | `dns_client.validate_*` | `test_invalid_*` (test_dns.py) | resposta 400 no painel |
 | RF-DHCP-01 — reservar IP por MAC | `dhcp_client.create_reservation` | `test_create_reservation_applies_and_versions` | concessão renovada no Ubuntu bate com a reserva |
 | RF-DHCP-02 — recusar IP de infraestrutura | `dhcp_client.validate_ip_in_subnet` | `test_ip_must_be_in_subnet_and_not_infra` | resposta 400 no painel |
+| RF-VDI-01 — criar desktop a partir da base com perfil e dono | `lab.request_instance` + `_Step.on_em_criacao` + agente `clone/configure` | `test_full_flow_until_ready_and_access`, `test_clone_marks_vm_and_is_idempotent` | aba Laboratório + `VBoxManage list vms` + `hostnamectl` no desktop |
+| RF-VDI-02 — reservar capacidade e respeitar cota, sem duplicar | `lab.request_instance` (BEGIN IMMEDIATE, `op_id`) | `test_concurrent_requests_never_exceed_capacity`, `test_concurrent_duplicate_op_creates_one`, `test_quota_per_user` | recusa auditada como `negado` |
+| RF-VDI-03 — retomar tarefa após falha do agente/backend | `_Step.run` + `find_by_op` | `test_clone_timeout_checks_host_before_retrying`, `test_agent_down_then_back`, `test_backend_restart_reconciles` | transições da tarefa na aba |
+| RF-VDI-04 — acesso só do proprietário; exclusão preserva base | `lab.authorize`, `lab.access`, agente `managed_info` | `test_other_user_cannot_see_or_access`, `test_never_touches_base_or_unmanaged_vms` | 403 auditado; base em `list vms` |
 | RF-AUD-01 — toda alteração gera evento auditável | `audit.record` chamado em cada `*_client.py` | `test_admin_permissions` (checa `/api/audit`) | linha na aba Auditoria com `correlation_id` |
 
 (Como no exemplo do próprio enunciado, esta tabela não representa testes reais contra os servidores
 físicos — isso só acontece no roteiro de validação do README, checkpoint por vez.)
 
-## 4. Plano para o Incremento 3 — Laboratório virtual sob demanda
+## 4. Incremento 3 — Laboratório virtual (implementado)
 
-Ainda não implementado. Resumo do desenho (a implementar em uma próxima etapa):
-
-**Componentes novos:**
-- `labvm-agent/` — um processo **separado**, rodando no host físico (fora de qualquer VM), com sua
-  própria API HTTP autenticada (token fixo em `.env`, nunca exposta fora de uma rede host-only). Só
-  ele chama `VBoxManage`. Operações expostas: `inventory`, `clone`, `configure`, `start`,
-  `status`, `stop`, `delete` — cada uma validando UUID/nome/perfil antes de montar o argv do
-  `VBoxManage` (mesmo princípio de "nunca concatenar entrada do usuário" já usado no SSH).
-- `backend/app/labvm_client.py` — fala HTTP com o agente (não SSH, já que agente e backend estão em
-  máquinas diferentes); guarda catálogo de imagens, perfis (`1 vCPU/2GiB`, `2 vCPU/4GiB`), cotas por
-  usuário e o estado de cada instância (tabela `labvm_instances` no SQLite: uuid, proprietário,
-  perfil, estado, criado_em).
-- Fluxo de criação: reserva de cota em transação → enfileira pedido com um `correlation_id` →
-  agente clona a imagem-base → personaliza (hostname, chaves) → inicia headless → backend consulta
-  prontidão (porta do RDP/VNC responde) → só então libera os dados de acesso ao usuário.
-- Admissão: nunca reservar mais do que a capacidade do host permite; pedido duplicado (mesmo
-  `correlation_id`) não deve clonar duas vezes.
-
-**Por que não entrou nesta entrega:** é o incremento mais pesado do enunciado (o próprio professor
-atribui 3 pontos a ele por complexidade) e depende de decisões que só você pode validar no seu host
-físico: nome da interface host-only, se o VirtualBox aceita clonar/iniciar via `VBoxManage` sem
-senha para o seu usuário administrador de VMs, e qual sistema usar como imagem-base. Posso montar o
-agente e o `labvm_client.py` numa próxima etapa — me diga o nome da interface host-only já criada no
-VirtualBox e se você quer RDP (xrdp) ou VNC no convidado.
+Arquitetura, estados, política de reserva, persistência, checkpoints de instalação (host Windows,
+rede host-only, VRDE, imagem-base, agente e console), testes T-VDI e roteiro de medição estão em
+[`docs/laboratorio-virtual.md`](laboratorio-virtual.md). Decisões: ADR-004 e ADR-006.
 
 ## 5. Incremento 4 — serviço exclusivo: Autenticação RADIUS (opção 5)
 

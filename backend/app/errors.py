@@ -39,3 +39,15 @@ class PayloadTooLarge(ServiceError):
     status = 413
     code = "too_large"
     message = "Arquivo maior que o limite permitido."
+
+
+class Forbidden(ServiceError):
+    status = 403
+    code = "forbidden"
+    message = "Permissão insuficiente para este recurso."
+
+
+class Unavailable(ServiceError):
+    status = 503
+    code = "unavailable"
+    message = "Serviço temporariamente indisponível."

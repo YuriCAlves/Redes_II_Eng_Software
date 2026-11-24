@@ -3,15 +3,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
-from . import config
+from . import config, lab
 from .db import init_db
-from .routers import audit, auth, dashboard, dhcp, dns, files, logs, mail, ssh
+from .routers import audit, auth, dashboard, dhcp, dns, files, lab as lab_router, logs, mail, ssh
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    # Fila do laboratório: só com o agente configurado. A 1ª volta reconcilia
+    # banco e host (instâncias que estavam no meio de uma tarefa continuam).
+    if config.LAB_WORKER and config.LAB_AGENT_URL:
+        lab.start_worker()
     yield
+    lab.stop_worker()
 
 
 app = FastAPI(title="Console N2 - Administração de Serviços", lifespan=lifespan)
@@ -24,6 +29,7 @@ app.include_router(ssh.router)
 app.include_router(logs.router)
 app.include_router(dns.router)
 app.include_router(dhcp.router)
+app.include_router(lab_router.router)
 app.include_router(audit.router)
 
 

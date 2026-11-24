@@ -1,0 +1,27 @@
+{
+  "images": [
+    {
+      "id": "debian12-xfce-v1",
+      "name": "Debian 12 + XFCE (BASE-LINUX-v1)",
+      "version": "1",
+      "os": "Linux",
+      "description": "Desktop XFCE, Firefox, LibreOffice e ferramentas de rede. Persistente até a exclusão."
+    }
+  ],
+  "profiles": [
+    {
+      "id": "p1",
+      "name": "Básico — 1 vCPU / 2 GiB",
+      "cpus": 1,
+      "memory_mb": 2048,
+      "roles": ["operador", "admin"]
+    },
+    {
+      "id": "p2",
+      "name": "Ampliado — 2 vCPUs / 4 GiB",
+      "cpus": 2,
+      "memory_mb": 4096,
+      "roles": ["admin"]
+    }
+  ]
+}

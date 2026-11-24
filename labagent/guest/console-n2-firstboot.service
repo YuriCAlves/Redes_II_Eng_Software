@@ -1,0 +1,13 @@
+[Unit]
+Description=Console N2 - personalização da instância e sinal de prontidão
+Wants=vboxadd-service.service
+After=vboxadd-service.service network-online.target display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/console-n2-firstboot
+RemainAfterExit=yes
+TimeoutStartSec=300
+
+[Install]
+WantedBy=graphical.target

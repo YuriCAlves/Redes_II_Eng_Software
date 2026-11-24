@@ -18,7 +18,7 @@ empacotado localmente (veja "Instalação offline").
 | CP7 | Mockup, diagrama, ficha de verificação | ✅ em `docs/` |
 | Incr. 1 | DNS interno (BIND 9): registros, consulta, restauração | ✅ |
 | Incr. 2 | DHCP (Kea): reservas, concessões, restauração | ✅ |
-| Incr. 3 | Laboratório virtual sob demanda (VirtualBox) | 🔜 ver `docs/plano-extensoes.md` |
+| Incr. 3 | Laboratório virtual sob demanda (VirtualBox + agente no host) | ✅ ver `docs/laboratorio-virtual.md` |
 | Incr. 4 | Serviço de rede exclusivo | 🔜 ver `docs/plano-extensoes.md` |
 | Parte 2 | Auditoria persistente | ✅ (`audit.py`, aba Auditoria) |
 
@@ -42,14 +42,19 @@ console_n2/
 │   │   ├── ssh_client.py      # CP5/CP6: paramiko
 │   │   ├── dns_client.py      # Incremento 1: zona BIND 9 via SSH
 │   │   ├── dhcp_client.py     # Incremento 2: kea-dhcp4.conf + leases via SSH
+│   │   ├── lab.py             # Incremento 3: admissão, cotas, fila e reconciliação
+│   │   ├── labvm_client.py    # Incremento 3: cliente HTTP do agente do host
+│   │   ├── lab_catalog.json   # Incremento 3: imagens e perfis
 │   │   ├── audit.py           # Parte 2 (7.3): auditoria persistente + versionamento de config
-│   │   └── routers/           # auth, dashboard, files, mail, ssh, logs, dns, dhcp, audit
-│   ├── tests/                 # test_auth, test_collectors, test_modules, test_dns, test_dhcp
+│   │   └── routers/           # auth, dashboard, files, mail, ssh, logs, dns, dhcp, lab, audit
+│   ├── tests/                 # test_auth, test_collectors, test_modules, test_dns, test_dhcp, test_lab
 │   ├── create_user.py         # cria/atualiza usuários
 │   ├── .env.example           # modelo de configuração (sem segredos)
 │   └── requirements.txt
-├── frontend/                  # React + Vite (abas: ..., DNS, DHCP, Auditoria)
-├── scripts/registrar_host_key.sh
+├── frontend/                  # React + Vite (abas: ..., DNS, DHCP, Laboratório, Auditoria)
+├── labagent/                  # Incremento 3: agente do HOST (Windows) + arquivos da imagem-base (guest/)
+├── deploy/                    # sudoers e modelo do Kea prontos para instalar
+├── scripts/                   # registrar_host_key.sh, lab_medicao.py
 └── docs/                      # mockup/, arquitetura.md/.png/.mmd, ficha_verificacao.md, plano-extensoes.md
 ```
 
@@ -280,6 +285,10 @@ Em desenvolvimento: `uvicorn app.main:app --reload` e, em outro terminal, `npm r
 | Alterar/restaurar hostname | 403 | 403 | ✅ |
 | Consultar DNS/DHCP (zona, reservas, concessões) | ✅ | ✅ | ✅ |
 | Criar/remover/restaurar registro DNS ou reserva DHCP | 403 | 403 | ✅ |
+| Ver catálogo e capacidade do laboratório | ✅ | ✅ | ✅ |
+| Pedir, ligar, desligar e excluir desktop **próprio** (cota) | 403 | ✅ (perfil `p1`) | ✅ (`p1`, `p2`) |
+| Ver, desligar e excluir desktop de **outro** usuário | 403 | 403 | ✅ |
+| Ver dados de acesso (RDP) do desktop | 403 | só o próprio | só o próprio |
 | Consultar auditoria | 403 | próprias ações | tudo |
 
 A linha "Criar/remover/restaurar registro DNS ou reserva DHCP" é admin-only porque a seção 7 do
@@ -354,7 +363,9 @@ python -m pytest -v
 
 `test_auth.py` cobre login, hash, 401/403 e o critério do CP1 (precisa de FastAPI);
 `test_collectors.py` e `test_modules.py` cobrem métricas, validações, FTP, e-mail, SSH e logs
-usando servidores simulados (não tocam nos serviços reais).
+usando servidores simulados (não tocam nos serviços reais). `test_lab.py` cobre admissão, cota,
+capacidade concorrente, idempotência, fila, falhas e recuperação com um agente simulado. O agente
+tem os próprios testes: `cd labagent && python -m pytest`.
 
 ## Segurança — resumo
 
@@ -396,7 +407,7 @@ usando servidores simulados (não tocam nos serviços reais).
 
 ## Parte 2 — entrega final (N2)
 
-DNS, DHCP e auditoria persistente já estão implementados (ver tabela no topo). Faltam os dois
-incrementos mais pesados — **laboratório virtual sob demanda** (seção 8.3) e o **serviço de rede
-exclusivo** (seção 8.4) — cujo plano, decisões de arquitetura e sugestão de serviço estão em
+DNS, DHCP, laboratório virtual e auditoria persistente estão implementados (ver tabela no topo).
+O laboratório tem roteiro próprio, com checkpoints de instalação do host Windows, da imagem-base e
+do agente, em `docs/laboratorio-virtual.md`. Decisões de arquitetura e rastreabilidade estão em
 `docs/plano-extensoes.md`.

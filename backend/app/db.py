@@ -51,6 +51,52 @@ CREATE TABLE IF NOT EXISTS config_versions (
     note       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_config_versions_module ON config_versions (module, id);
+
+CREATE TABLE IF NOT EXISTS lab_instances (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    op_id           TEXT NOT NULL UNIQUE,      -- identificador da operação (idempotência)
+    correlation_id  TEXT NOT NULL,             -- liga pedido, transições e auditoria
+    owner           TEXT NOT NULL,
+    owner_role      TEXT NOT NULL,
+    name            TEXT NOT NULL UNIQUE,
+    image_id        TEXT NOT NULL,
+    image_version   TEXT NOT NULL,
+    profile_id      TEXT NOT NULL,
+    cpus            INTEGER NOT NULL,
+    memory_mb       INTEGER NOT NULL,
+    state           TEXT NOT NULL CHECK (state IN ('solicitada', 'em_criacao', 'iniciando', 'disponivel',
+                                                   'desligada', 'falha', 'em_exclusao', 'excluida')),
+    pending_action  TEXT,                      -- 'iniciar_enviado', 'desligar', 'desligar_enviado'
+    action_since    TEXT,
+    cleanup_pending INTEGER NOT NULL DEFAULT 0,
+    vbox_uuid       TEXT,
+    mac             TEXT,
+    ip              TEXT,
+    vrde_port       INTEGER,
+    vrde_user       TEXT,
+    vrde_password   TEXT,                      -- só o proprietário vê; apagada na exclusão
+    guest_password  TEXT,
+    error           TEXT,
+    measured_cpu    REAL,
+    measured_ram_mb REAL,
+    measured_at     TEXT,
+    requested_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    state_since     TEXT NOT NULL DEFAULT (datetime('now')),
+    ready_at        TEXT,
+    deleted_at      TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lab_port ON lab_instances (vrde_port) WHERE state != 'excluida';
+CREATE INDEX IF NOT EXISTS idx_lab_owner ON lab_instances (owner, state);
+
+CREATE TABLE IF NOT EXISTS lab_transitions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    instance_id INTEGER NOT NULL REFERENCES lab_instances(id),
+    ts          TEXT NOT NULL DEFAULT (datetime('now')),
+    from_state  TEXT,
+    to_state    TEXT NOT NULL,
+    detail      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_lab_transitions ON lab_transitions (instance_id, id);
 """
 
 

@@ -1,0 +1,71 @@
+#!/bin/bash
+# /usr/local/sbin/console-n2-firstboot — roda NO CONVIDADO (imagem-base BASE-LINUX-v1).
+#
+# Personaliza a instância na primeira inicialização de cada clone e avisa o
+# host quando o desktop está pronto. Os dados vêm das propriedades de
+# convidado que o agente grava antes de ligar a VM (só leitura para o convidado):
+#   /ConsoleN2/InstanceId    identificador da operação (op_id)
+#   /ConsoleN2/Hostname      nome da instância
+#   /ConsoleN2/GuestPassword senha própria do usuário "aluno" (o agente apaga depois)
+# Sinal de prontidão (lido pelo agente): /ConsoleN2/Ready = InstanceId.
+set -u
+# (ROOT/VBC/STATE só são trocados no teste automatizado; na VM ficam os padrões)
+ROOT=${CONSOLE_N2_ROOT:-}
+VBC=${CONSOLE_N2_VBOXCONTROL:-/usr/bin/VBoxControl}
+STATE=$ROOT/var/lib/console-n2
+GUEST_USER=aluno
+
+get() { "$VBC" --nologo guestproperty get "$1" 2>/dev/null | sed -n 's/^Value: //p'; }
+log() { logger -t console-n2-firstboot "$*"; }
+
+[ -x "$VBC" ] || { log "VBoxControl ausente: instale os Guest Additions na imagem-base"; exit 1; }
+install -d -m 700 "$STATE"
+
+ID=""
+for _ in $(seq 1 30); do            # o serviço dos Guest Additions pode demorar a subir
+    ID=$(get /ConsoleN2/InstanceId)
+    [ -n "$ID" ] && break
+    sleep 2
+done
+if [ -z "$ID" ]; then
+    log "sem /ConsoleN2/InstanceId: VM fora do console (provavelmente a própria base); nada a fazer"
+    exit 0
+fi
+case "$ID" in *[!0-9a-f]*) log "InstanceId inválido"; exit 1 ;; esac
+
+if [ "$(cat "$STATE/instance-id" 2>/dev/null)" != "$ID" ]; then
+    HN=$(get /ConsoleN2/Hostname)
+    PW=$(get /ConsoleN2/GuestPassword)
+    if ! printf '%s' "$HN" | grep -Eq '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'; then
+        log "hostname inválido"; exit 1
+    fi
+    hostnamectl set-hostname "$HN"
+    if grep -q '^127\.0\.1\.1' "$ROOT/etc/hosts"; then
+        sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t$HN/" "$ROOT/etc/hosts"
+    else
+        printf '127.0.1.1\t%s\n' "$HN" >> "$ROOT/etc/hosts"
+    fi
+    # identidade própria: machine-id (também muda o client-id do DHCP) e chaves SSH
+    rm -f "$ROOT/etc/machine-id" "$ROOT/var/lib/dbus/machine-id"
+    systemd-machine-id-setup >/dev/null
+    ln -sf /etc/machine-id "$ROOT/var/lib/dbus/machine-id"
+    rm -f "$ROOT"/etc/ssh/ssh_host_*
+    ssh-keygen -A >/dev/null 2>&1
+    systemctl try-restart ssh 2>/dev/null || true
+    if [ -n "$PW" ]; then
+        printf '%s:%s\n' "$GUEST_USER" "$PW" | chpasswd
+        passwd -u "$GUEST_USER" >/dev/null 2>&1 || true
+    fi
+    # renova o endereço com a identidade nova (Kea entrega IP e DNS do laboratório)
+    systemctl try-restart NetworkManager 2>/dev/null || systemctl try-restart networking 2>/dev/null || true
+    echo "$ID" > "$STATE/instance-id"
+    log "instância $HN personalizada"
+fi
+
+# desktop pronto = gerenciador de sessão gráfica ativo
+for _ in $(seq 1 60); do
+    systemctl is-active --quiet display-manager && break
+    sleep 2
+done
+"$VBC" --nologo guestproperty set /ConsoleN2/Ready "$ID"
+log "prontidão sinalizada ao host"

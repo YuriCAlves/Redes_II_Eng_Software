@@ -8,3 +8,4 @@ node_modules/
 id_*
 known_hosts
 backend/wheels/
+labagent/agent.json
