@@ -113,12 +113,18 @@ def connect():
     return client
 
 
-def run(client, argv: list[str], timeout: int = 15) -> tuple[int, str, str]:
-    """Executa um comando montado a partir de uma LISTA de argumentos."""
+def run(client, argv: list[str], timeout: int = 15, input: str | None = None) -> tuple[int, str, str]:
+    """Executa um comando montado a partir de uma LISTA de argumentos.
+
+    `input` vai pela entrada padrão (nunca pela linha de comando, onde apareceria no `ps`).
+    """
     import paramiko
 
     try:
         _in, out, err = client.exec_command(shlex.join(argv), timeout=timeout)
+        if input is not None:
+            _in.write(input)
+            _in.channel.shutdown_write()
         stdout = out.read(1_000_000).decode("utf-8", "replace")
         stderr = err.read(100_000).decode("utf-8", "replace")
         return out.channel.recv_exit_status(), stdout, stderr

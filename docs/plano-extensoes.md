@@ -12,7 +12,7 @@ exclusivo), com as decisões de arquitetura por trás de cada escolha.
 | 2 — DHCP (Kea) | ✅ implementado e testado | `backend/app/dhcp_client.py`, `routers/dhcp.py`, `tests/test_dhcp.py`, `frontend/src/pages/Dhcp.jsx` |
 | Auditoria persistente (7.3) | ✅ implementado | `backend/app/audit.py`, `routers/audit.py`, `frontend/src/pages/Audit.jsx` |
 | 3 — Laboratório virtual | ✅ implementado e testado (com agente simulado) | `backend/app/lab.py`, `labvm_client.py`, `routers/lab.py`, `tests/test_lab.py`, `labagent/`, `frontend/src/pages/Lab.jsx`; roteiro em `docs/laboratorio-virtual.md` |
-| 4 — Serviço exclusivo (RADIUS) | 🔜 escolhido; aguardando validação do Prof. Matias (seção 5) | — |
+| 4 — Serviço exclusivo (RADIUS) | ✅ implementado e testado (validação do Prof. Matias pendente) | `backend/app/radius_client.py`, `radius_hash.py`, `routers/radius.py`, `tests/test_radius.py`, `frontend/src/pages/Radius.jsx`, `deploy/freeradius/`; roteiro em `docs/radius.md` |
 
 ## 2. Decisões de arquitetura (ADRs)
 
@@ -116,6 +116,9 @@ restrito à rede host-only e à origem do Ubuntu pelo firewall do Windows.
 | RF-VDI-02 — reservar capacidade e respeitar cota, sem duplicar | `lab.request_instance` (BEGIN IMMEDIATE, `op_id`) | `test_concurrent_requests_never_exceed_capacity`, `test_concurrent_duplicate_op_creates_one`, `test_quota_per_user` | recusa auditada como `negado` |
 | RF-VDI-03 — retomar tarefa após falha do agente/backend | `_Step.run` + `find_by_op` | `test_clone_timeout_checks_host_before_retrying`, `test_agent_down_then_back`, `test_backend_restart_reconciles` | transições da tarefa na aba |
 | RF-VDI-04 — acesso só do proprietário; exclusão preserva base | `lab.authorize`, `lab.access`, agente `managed_info` | `test_other_user_cannot_see_or_access`, `test_never_touches_base_or_unmanaged_vms` | 403 auditado; base em `list vms` |
+| RF-EXT-01 — gerenciar NAS, políticas e usuários pelo painel | `radius_client.create_client/save_policy/create_user` | `test_create_client_and_user_applies_and_versions`, `test_render_users_and_clients` | `ssh maria@ubuntu` aceito; aba RADIUS |
+| RF-EXT-02 — autenticação aceita/negada e contabilização | FreeRADIUS + `parse_auth_log`, `sessions_from_detail` | `test_parse_auth_log`, `test_sessions_from_detail`, `test_block_policy_and_restore` | sessão encerrada com duração; bloqueio → negado |
+| RF-EXT-03 — configuração inválida nunca carregada | `radius_client._apply` (rollback) | `test_rejected_config_is_rolled_back_without_restart` | FreeRADIUS segue atendendo |
 | RF-AUD-01 — toda alteração gera evento auditável | `audit.record` chamado em cada `*_client.py` | `test_admin_permissions` (checa `/api/audit`) | linha na aba Auditoria com `correlation_id` |
 
 (Como no exemplo do próprio enunciado, esta tabela não representa testes reais contra os servidores
@@ -129,8 +132,9 @@ rede host-only, VRDE, imagem-base, agente e console), testes T-VDI e roteiro de 
 
 ## 5. Incremento 4 — serviço exclusivo: Autenticação RADIUS (opção 5)
 
-**Status:** escolhido pelo discente; **aguardando validação do Prof. Matias** (seção 8.4 exige a
-validação antes da implementação). Nada deste módulo foi implementado ainda.
+**Status:** escolhido pelo discente e **implementado**; a validação do Prof. Matias (seção 8.4) ainda
+precisa ser registrada abaixo — se ele pedir mudança de escopo, o registro e o módulo serão
+ajustados. Instalação, validação e experimento: [`docs/radius.md`](radius.md).
 
 ### 5.1 Registro (formato da seção 8.4)
 
@@ -149,10 +153,12 @@ validação antes da implementação). Nada deste módulo foi implementado ainda
 
 - `radius_client.py` + `routers/radius.py` + `pages/Radius.jsx`, SSH self-loopback e sudoers mínimo
   (ADR-001); leitura para `leitor+`, escrita só `admin`; auditoria em toda ação.
-- Arquivos gerenciados inteiros pelo console, incluídos pela configuração do FreeRADIUS
-  (`clients.d/console.conf` e um arquivo de usuários do módulo `files`), sem tocar no resto (ADR-002).
-- Validar antes de aplicar com `freeradius -XC` sobre a candidata, versionar a anterior em
-  `config_versions` e só então reiniciar (ADR-003).
+- Arquivos gerenciados inteiros pelo console em `/etc/freeradius/3.0/console-n2/` (estado JSON +
+  `clients.conf` + `users` gerados), incluídos uma única vez pelo `deploy/freeradius/instalar.sh`,
+  sem tocar no resto (ADR-002).
+- Validar com `freeradius -XC` antes de reiniciar: como o FreeRADIUS só valida a árvore no lugar
+  dela, o candidato é instalado e, se recusado, a versão anterior volta na mesma operação; só uma
+  configuração aceita é versionada e carregada (ADR-003).
 - Contabilização lida dos arquivos `detail` de `radacct`; aceitos/negados lidos do log com
   `auth = yes`. Segredos de NAS e hashes de senha nunca voltam para o navegador nem para a auditoria.
 

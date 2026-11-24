@@ -417,3 +417,20 @@ def test_api_roles_and_ownership(api, fake):
 
     login(api, "lia")
     assert api.get(f"/api/lab/instances/{iid}/start").status_code == 403
+
+
+def test_delete_during_clone_removes_new_vm(fake, monkeypatch):
+    inst, _ = lab.request_instance(OTAVIO, IMG, "p1", op(1))
+    original = fake.clone
+
+    def clone_and_user_deletes(*a):
+        vm = original(*a)
+        lab.request_delete(OTAVIO, inst["id"])  # usuário clica em Excluir no meio da clonagem
+        return vm
+
+    monkeypatch.setattr(labvm_client, "clone", clone_and_user_deletes)
+    lab.process_once()
+    lab.process_once()
+    assert state(inst["id"])["state"] == "excluida"
+    assert fake.vms == {}
+    assert not [c for c in fake.calls if c[0] == "configure"]

@@ -128,6 +128,10 @@ def create_app(cfg: "settings_mod.Settings", vbox: VBox) -> FastAPI:
                 out.append(":".join(mac[j:j + 2] for j in range(0, 12, 2)).lower())
         return out
 
+    def auth_library(props: dict) -> str:
+        """O nome da chave muda entre versões ("VRDE auth library", "Remote desktop auth library"...)."""
+        return next((v for k, v in props.items() if "auth library" in k.lower()), "")
+
     def vrde_listening(port: int) -> bool:
         try:
             with socket.create_connection((cfg.vrde_address, port), timeout=1.5):
@@ -204,8 +208,8 @@ def create_app(cfg: "settings_mod.Settings", vbox: VBox) -> FastAPI:
         running = {vm["uuid"] for vm in call(vbox.list_vms, True)}
         return {
             "vbox_version": call(vbox.version),
-            "extension_pack": "Extension Pack" in call(vbox.extpacks),
-            "vrde_auth_library": props.get("VRDE auth library") or props.get("Remote desktop auth library"),
+            "extension_pack": bool(re.search(r"Pack no\.\s*\d+:.*Extension Pack", call(vbox.extpacks))),
+            "vrde_auth_library": auth_library(props),
             "host": host,
             "limits": {"max_cpus": cfg.max_cpus, "max_memory_mb": cfg.max_memory_mb},
             "images": images,
@@ -255,8 +259,7 @@ def create_app(cfg: "settings_mod.Settings", vbox: VBox) -> FastAPI:
             uuid = uuid.lower()
             if info.get("VMState") != "poweroff":
                 raise HTTPException(status_code=409, detail={"code": "state", "message": "Configure com a VM desligada."})
-            lib = call(vbox.system_properties).get("VRDE auth library", "")
-            if "VBoxAuthSimple" not in lib:
+            if "VBoxAuthSimple" not in auth_library(call(vbox.system_properties)):
                 raise HTTPException(
                     status_code=412,
                     detail={"code": "vrde_auth", "message": "Defina VBoxAuthSimple como biblioteca de autenticação VRDE."},
@@ -280,9 +283,15 @@ def create_app(cfg: "settings_mod.Settings", vbox: VBox) -> FastAPI:
             info = managed_info(uuid, body.op_id)
             uuid = uuid.lower()
             if info.get("VMState") not in RUNNING_STATES:
-                call(vbox.unset_guestproperty, uuid, PROP_READY)  # prontidão vale só para este boot
-                call(vbox.metrics_setup, uuid)
+                try:  # prontidão vale só para este boot (pode não existir ainda)
+                    vbox.unset_guestproperty(uuid, PROP_READY)
+                except VBoxError:
+                    pass
                 call(vbox.start_headless, uuid)
+                try:
+                    vbox.metrics_setup(uuid)  # medição é informativa: nunca impede o início
+                except (VBoxError, VBoxTimeout):
+                    pass
             return describe(uuid, call(vbox.info, uuid))
 
     @app.post("/v1/instances/{uuid}/stop", dependencies=guard)

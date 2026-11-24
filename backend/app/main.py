@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 
 from . import config, lab
 from .db import init_db
-from .routers import audit, auth, dashboard, dhcp, dns, files, lab as lab_router, logs, mail, ssh
+from .routers import audit, auth, dashboard, dhcp, dns, files, lab as lab_router, logs, mail, radius, ssh
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ app.include_router(logs.router)
 app.include_router(dns.router)
 app.include_router(dhcp.router)
 app.include_router(lab_router.router)
+app.include_router(radius.router)
 app.include_router(audit.router)
 
 

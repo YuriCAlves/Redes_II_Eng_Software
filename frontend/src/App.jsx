@@ -12,6 +12,7 @@ import Dns from "./pages/Dns.jsx";
 import Dhcp from "./pages/Dhcp.jsx";
 import Audit from "./pages/Audit.jsx";
 import Lab from "./pages/Lab.jsx";
+import Radius from "./pages/Radius.jsx";
 
 export const TABS = [
   { path: "/visao-geral", label: "Visão Geral", element: <Dashboard /> },
@@ -22,6 +23,7 @@ export const TABS = [
   { path: "/dns", label: "DNS", element: <Dns /> },
   { path: "/dhcp", label: "DHCP", element: <Dhcp /> },
   { path: "/laboratorio", label: "Laboratório", element: <Lab /> },
+  { path: "/radius", label: "RADIUS", element: <Radius /> },
   { path: "/logs", label: "Logs", element: <Logs /> },
   { path: "/auditoria", label: "Auditoria", element: <Audit /> },
 ];

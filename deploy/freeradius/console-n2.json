@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "clients": [],
+  "policies": [
+    {"name": "padrao", "session_timeout": 3600, "idle_timeout": 600, "blocked": false,
+     "reply_message": "Acesso autorizado (politica padrao, 1 h)"},
+    {"name": "visitante", "session_timeout": 900, "idle_timeout": 300, "blocked": false,
+     "reply_message": "Sessao de visitante (15 min)"},
+    {"name": "suspenso", "session_timeout": 0, "idle_timeout": 0, "blocked": true,
+     "reply_message": "Conta suspensa pelo administrador"}
+  ],
+  "users": []
+}

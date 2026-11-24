@@ -23,5 +23,20 @@ Cmnd_Alias CONSOLE_DHCP = \
 Cmnd_Alias CONSOLE_DHCP_TEST = \
     /usr/sbin/kea-dhcp4 -t /etc/kea/kea-dhcp4.candidate.json
 
-yuri ALL=(root) NOPASSWD: CONSOLE_DNS, CONSOLE_DHCP
+# RADIUS (incremento 4): estado + arquivos gerados, reinício e leitura de logs por um script fixo
+Cmnd_Alias CONSOLE_RADIUS = \
+    /usr/bin/cat /etc/freeradius/3.0/console-n2/console-n2.json, \
+    /usr/bin/cp /var/lib/console-n2/radius-state.json /etc/freeradius/3.0/console-n2/console-n2.json, \
+    /usr/bin/cp /var/lib/console-n2/radius-clients.conf /etc/freeradius/3.0/console-n2/clients.conf, \
+    /usr/bin/cp /var/lib/console-n2/radius-users /etc/freeradius/3.0/console-n2/users, \
+    /usr/bin/systemctl restart freeradius, \
+    /usr/local/sbin/console-n2-radius-read auth, \
+    /usr/local/sbin/console-n2-radius-read acct
+
+# Validação do FreeRADIUS como o usuário do serviço (lê a árvore de configuração, não grava nada)
+Cmnd_Alias CONSOLE_RADIUS_TEST = \
+    /usr/sbin/freeradius -XC
+
+yuri ALL=(root) NOPASSWD: CONSOLE_DNS, CONSOLE_DHCP, CONSOLE_RADIUS
 yuri ALL=(_kea) NOPASSWD: CONSOLE_DHCP_TEST
+yuri ALL=(freerad) NOPASSWD: CONSOLE_RADIUS_TEST

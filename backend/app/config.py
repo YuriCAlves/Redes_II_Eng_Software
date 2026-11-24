@@ -138,3 +138,17 @@ LAB_STOP_TIMEOUT = _int("CONSOLE_LAB_STOP_TIMEOUT", 90)             # s de ACPI 
 LAB_POLL_INTERVAL = _int("CONSOLE_LAB_POLL_INTERVAL", 5)
 LAB_WORKER = os.environ.get("CONSOLE_LAB_WORKER", "1") == "1"        # desliga a fila (testes)
 LAB_CATALOG_PATH = Path(os.environ.get("CONSOLE_LAB_CATALOG", BASE_DIR / "app" / "lab_catalog.json"))
+
+# ---------- RADIUS - FreeRADIUS (incremento 4, serviço exclusivo) ----------
+RADIUS_DIR = os.environ.get("CONSOLE_RADIUS_DIR", "/etc/freeradius/3.0/console-n2")
+RADIUS_STATE_PATH = f"{RADIUS_DIR}/console-n2.json"
+RADIUS_CLIENTS_PATH = f"{RADIUS_DIR}/clients.conf"
+RADIUS_USERS_PATH = f"{RADIUS_DIR}/users"
+RADIUS_BIN = os.environ.get("CONSOLE_RADIUS_BIN", "/usr/sbin/freeradius")
+RADIUS_SERVICE_USER = os.environ.get("CONSOLE_RADIUS_SERVICE_USER", "freerad")
+RADIUS_SYSTEMD_UNIT = os.environ.get("CONSOLE_RADIUS_SYSTEMD_UNIT", "freeradius")
+RADIUS_READ_HELPER = os.environ.get("CONSOLE_RADIUS_READ_HELPER", "/usr/local/sbin/console-n2-radius-read")
+RADCLIENT_BIN = os.environ.get("CONSOLE_RADCLIENT_BIN", "/usr/bin/radclient")
+RADIUS_TEST_SECRET = os.environ.get("CONSOLE_RADIUS_TEST_SECRET", "")   # segredo do client localhost
+RADIUS_NAS_NETWORK = os.environ.get("CONSOLE_RADIUS_NAS_NETWORK", "192.168.100.0/24")
+RADIUS_MAX_USERS = _int("CONSOLE_RADIUS_MAX_USERS", 6000)

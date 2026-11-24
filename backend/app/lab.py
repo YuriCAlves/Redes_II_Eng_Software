@@ -508,6 +508,8 @@ class _Step:
                 except agent.AgentError as exc:
                     return self.fail(f"Clonagem recusada pelo agente: {exc.message}", cleanup=True)
             self.update(vbox_uuid=vm["uuid"], mac=(vm.get("macs") or [None])[0], error=None)
+            if self.row["state"] != "em_criacao":
+                return  # excluída durante a clonagem: a exclusão (que acha a VM pelo op_id) continua
             r = self.row
         try:
             agent.configure(r["vbox_uuid"], {

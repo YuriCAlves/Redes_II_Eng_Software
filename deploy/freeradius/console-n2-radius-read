@@ -1,0 +1,18 @@
+#!/bin/bash
+# /usr/local/sbin/console-n2-radius-read — leitura SÓ DE LOGS do FreeRADIUS para o console.
+# Instalado como root:root 755 (o usuário do console não pode alterá-lo). Aceita só "auth" ou "acct".
+set -euo pipefail
+LOGDIR=/var/log/freeradius
+case "${1:-}" in
+    auth)
+        tail -n 3000 "$LOGDIR/radius.log"
+        ;;
+    acct)
+        find "$LOGDIR/radacct" -type f -name 'detail-*' -mtime -7 -print0 2>/dev/null \
+            | sort -z | xargs -0 -r cat | tail -n 30000
+        ;;
+    *)
+        echo "uso: $0 auth|acct" >&2
+        exit 2
+        ;;
+esac

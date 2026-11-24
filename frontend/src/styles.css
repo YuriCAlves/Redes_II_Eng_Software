@@ -129,3 +129,5 @@ button.danger { background: #912018; }
 button.linklike { background: none; color: var(--primary); padding: 0; text-align: left; }
 .lab-access, .lab-detail { margin-top: 1rem; }
 .secret { display: inline-flex; gap: .4rem; align-items: center; }
+td.lab-actions { display: table-cell; white-space: nowrap; }
+td.lab-actions button { margin: .1rem .35rem .1rem 0; }

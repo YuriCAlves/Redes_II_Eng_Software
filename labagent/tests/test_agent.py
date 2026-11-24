@@ -72,7 +72,9 @@ class FakeVBox:
         return {"Default machine folder": "", "VRDE auth library": self.vrde_lib}
 
     def extpacks(self):
-        return "Pack no. 0:   Oracle VirtualBox Extension Pack"
+        return self.extpacks_out
+
+    extpacks_out = "Extension Packs: 1\nPack no. 0:   Oracle VirtualBox Extension Pack\nUsable: true"
 
     def metrics(self, vm):
         return {"cpu_percent": 3.0, "ram_used_mb": 900.0}
@@ -135,6 +137,14 @@ def test_requires_token(env):
     assert client.get("/v1/inventory").status_code == 401
     assert client.get("/v1/inventory", headers={"Authorization": "Bearer errado"}).status_code == 401
     assert client.get("/v1/inventory", headers=AUTH).status_code == 200
+
+
+def test_inventory_detects_extension_pack(env):
+    client, fake = env
+    inv = client.get("/v1/inventory", headers=AUTH).json()
+    assert inv["extension_pack"] is True and inv["vrde_auth_library"] == "VBoxAuthSimple"
+    fake.extpacks_out = "Extension Packs: 0"
+    assert client.get("/v1/inventory", headers=AUTH).json()["extension_pack"] is False
 
 
 def test_rejects_other_origin(monkeypatch):

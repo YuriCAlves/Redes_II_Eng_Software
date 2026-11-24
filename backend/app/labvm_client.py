@@ -74,7 +74,7 @@ def _request(method: str, path: str, body: dict | None = None, timeout: int | No
 
 
 def inventory() -> dict:
-    return _request("GET", "/v1/inventory")
+    return _request("GET", "/v1/inventory", timeout=8)  # a página de capacidade não pode travar
 
 
 def find_by_op(op_id: str) -> dict | None:
